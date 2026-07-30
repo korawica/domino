@@ -4,4 +4,98 @@ version = "0.1.0"
 description = "YAML template for orchestration tools."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "jinja2==3.1.6",
+    "pydantic==2.12.5",
+]
+
+[dependency-groups]
+dev = [
+    "freezegun==1.5.5",
+    "pre-commit>=3.4.0",
+    "pytest>=8.2.1",
+    "pytest-cov>=7.0.0",
+    "ruff>=0.5.5",
+]
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+concurrency = ["thread", "multiprocessing"]
+source = ["domino"]
+omit = [
+    "domino/__init__.py",
+    "domino/cli.py",
+    "dags/*",
+    "docs/*",
+    "scripts/*",
+    "tests/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "raise NotImplementedError",
+    "pragma: no cov",
+    "if TYPE_CHECKING:",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["domino"]
+console_output_style = "count"
+addopts = ["--strict-config", "--strict-markers"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::UserWarning",
+    # NOTE: This filter should not work when upgrade airflow to 3.x
+    # "ignore::airflow.exceptions.AirflowProviderDeprecationWarning:airflow.*:",
+]
+log_cli = true
+log_cli_level = "DEBUG"
+log_cli_format = "%(name)s|%(asctime)s [%(levelname)-7s] %(message)-120s (%(filename)s:%(lineno)s)"
+log_cli_date_format = "%Y%m%d %H:%M:%S"
+
+[project.urls]
+Homepage = "https://gitlab.cjexpress.io/cjexpress/tildi/infra/data-engineer/common-tools/domino"
+"Source Code" = "https://gitlab.cjexpress.io/cjexpress/tildi/infra/data-engineer/common-tools/domino"
+Documentation = "https://cjexpress.pages-gitlab.cjexpress.io/tildi/infra/data-engineer/common-tools/domino"
+Repository = "https://gitlab.cjexpress.io/tildi/infra/data-engineer/common-tools/domino.git"
+"Bug Tracker" = "https://gitlab.cjexpress.io/tildi/infra/data-engineer/common-tools/domino/-/issues"
+
+[tool.ruff]
+line-length = 80
+target-version = "py311"
+exclude = [
+    "__pypackages__",
+    ".__pycache__",
+    ".container",
+    ".idea",
+    ".vscode",
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "build",
+    "dist",
+    "venv",
+    "site-packages",
+]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort
+    "C",   # flake8-comprehensions
+    "B",   # flake8-bugbear
+    # ⚠️ WARNING: Disable the Airflow rules for now.
+    # "AIR", # airflow
+]
+ignore = [
+    "E501",   # line too long, handled by black
+    "B008",   # do not perform function calls in argument defaults
+    "C901",   # too complex
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
