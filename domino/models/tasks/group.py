@@ -4,8 +4,8 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import Field
 
-from ..base_models.builder import BaseTaskOrGroup
-from .task import Task
+from domino.models.tasks.builder import BaseTaskOrGroup
+from domino.models.tasks.task import Task
 
 
 class Group(BaseTaskOrGroup):
