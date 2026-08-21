@@ -2,7 +2,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-PriorityType = Literal["p1", "p2", "p3"]
+PriorityType = Literal["p1", "p2", "p3", "p4", "p5"]
 
 
 class Label(BaseModel):
