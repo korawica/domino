@@ -2,8 +2,8 @@ from typing import Annotated, Any, Literal, Union
 
 from pydantic import Field
 
-from domino.models.tasks.builder import BaseTaskOrGroup
-from domino.models.tasks.task import Task
+from domino.models.tasks.base_builder import BaseTaskOrGroup
+from domino.models.tasks.base_task import BaseTask
 
 
 class Group(BaseTaskOrGroup):
@@ -25,12 +25,12 @@ class Group(BaseTaskOrGroup):
 TaskOrGroup = Annotated[
     Union[
         Group,
-        Task,
+        BaseTask,
     ],
     Field(
         discriminator="type",
         description=(
-            "A union of Task and Group objects, allowing for polymorphic "
+            "A union of BaseTask and Group objects, allowing for polymorphic "
             "behavior based on the 'type' field."
         ),
     ),

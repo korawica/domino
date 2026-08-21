@@ -2,10 +2,10 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from domino.models.tasks.builder import BaseTaskOrGroup
+from domino.models.tasks.base_builder import BaseTaskOrGroup
 
 
-class Task(BaseTaskOrGroup):
+class BaseTask(BaseTaskOrGroup):
     id: str = Field(..., description="A unique identifier for the task.")
     type: Literal["task"] = "task"
 
