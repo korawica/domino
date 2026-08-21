@@ -651,8 +651,6 @@ version = "0.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "apache-airflow" },
-    { name = "jinja2" },
-    { name = "pydantic" },
 ]
 
 [package.dev-dependencies]
@@ -666,11 +664,7 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "apache-airflow", specifier = ">=3.3.0" },
-    { name = "jinja2", specifier = "==3.1.6" },
-    { name = "pydantic", specifier = "==2.12.5" },
-]
+requires-dist = [{ name = "apache-airflow", specifier = ">=3.3.0" }]
 
 [package.metadata.requires-dev]
 dev = [
