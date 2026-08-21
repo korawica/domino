@@ -13,6 +13,11 @@ class DagGenerator:
         self,
         path: Path | str,
     ) -> None:
+        """Initialize the DAG Generator.
+
+        Args:
+            path (Path | str): Path to the DAG template folder.
+        """
         self.path = path if isinstance(path, Path) else Path(path)
         if (
             (dags_path := get_dags_path())
