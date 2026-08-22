@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING
 
 from pydantic import Field
 
-from .__types import OperatorOrTaskGroup
+from .__types import BaseOperatorOrTaskGroup
 from .templater import Templater
 
 if TYPE_CHECKING:
@@ -26,7 +26,7 @@ class BaseBuilder(Templater, ABC):
         dag: DAG,
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
-    ) -> OperatorOrTaskGroup:
+    ) -> BaseOperatorOrTaskGroup:
         """Tool building method for build any Airflow task object. This method
         can return Operator or TaskGroup object.
 
@@ -38,7 +38,7 @@ class BaseBuilder(Templater, ABC):
                 if this task build under the task group.
 
         Returns:
-            OperatorOrTaskGroup: This method can return depend on building
+            BaseOperatorOrTaskGroup: This method can return depend on building
                 logic that already pass the DAG instance from the parent.
         """
         raise NotImplementedError(
@@ -67,7 +67,7 @@ class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
         dag: DAG,
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
-    ) -> OperatorOrTaskGroup:
+    ) -> BaseOperatorOrTaskGroup:
         """Backend Building the Airflow Operator or TaskGroup object.
 
         This method will update tasks building context value before returning
@@ -87,7 +87,7 @@ class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
                 if this task build under the task group.
 
         Returns:
-            OperatorOrTaskGroup: An Airflow Operator or TaskGroup instance.
+            BaseOperatorOrTaskGroup: An Airflow Operator or TaskGroup instance.
                 - Operator: Be a basic task that should implement 1-1 with Airflow
                             Operator.
                 - TaskGroup: Be note that if you implement TaskGroup model, it will
@@ -96,7 +96,7 @@ class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
         """
 
         # Start call build the Airflow object from the `build` method.
-        task_airflow: OperatorOrTaskGroup = self.build(
+        task_airflow: BaseOperatorOrTaskGroup = self.build(
             dag=dag,
             task_group=task_group,
             build_context=build_context,
