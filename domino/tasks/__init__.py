@@ -4,7 +4,7 @@ from pydantic import Field
 
 from .standard import EmptyTask, PythonTask
 
-Register = Annotated[
+Task = Annotated[
     Union[
         EmptyTask,
         PythonTask,

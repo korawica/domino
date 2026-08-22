@@ -7,7 +7,7 @@ from .builder import BaseAirflowTaskOrGroupBuilder
 
 
 class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
-    """Base Task Model."""
+    """Base Operator Task Model."""
 
     id: str = Field(..., description="A unique identifier for the task.")
     type: str = Field(..., description="The type of the task.")
@@ -21,7 +21,7 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
 
 
 class BaseSensorTask(BaseOperatorTask, ABC):
-    """Base Sensor Model."""
+    """Base Sensor Task Model."""
 
     poke_interval_sec: int = Field(
         default=60,

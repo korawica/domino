@@ -5,7 +5,7 @@ from airflow.sdk.definitions.taskgroup import TaskGroup
 from pydantic import Field
 
 from ..const import MAX_THREADS_BUILD_TASK_GROUP
-from ..providers import Register
+from ..tasks import Task
 from .builder import BaseAirflowTaskOrGroupBuilder
 
 if TYPE_CHECKING:
@@ -107,7 +107,7 @@ class Group(BaseAirflowTaskOrGroupBuilder):
 TaskOrGroup = Annotated[
     Union[
         Group,
-        Register,
+        Task,
     ],
     Field(
         discriminator="type",
