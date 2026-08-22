@@ -1,29 +1,18 @@
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
-from typing import TYPE_CHECKING, NotRequired, TypedDict, TypeVar
+from typing import TYPE_CHECKING
 
-from airflow.sdk.bases.operator import BaseOperator
-from airflow.sdk.definitions.taskgroup import TaskGroup
 from pydantic import Field
 
-from domino.models.templater import Templater
+from .__types import OperatorOrTaskGroup
+from .templater import Templater
 
 if TYPE_CHECKING:
+    from airflow.sdk.bases.operator import BaseOperator
     from airflow.sdk.definitions.dag import DAG
+    from airflow.sdk.definitions.taskgroup import TaskGroup
 
-    from domino.models.context import BuildContext
-
-
-Operator = TypeVar("Operator", bound=BaseOperator)
-OperatorOrTaskGroup = Operator | TaskGroup
-
-
-class TaskContext(TypedDict):
-    """Task Context dict typed."""
-
-    task: OperatorOrTaskGroup
-    upstream: list[str]
-    teardown: NotRequired[str | None]
+    from .context import BuildContext, TaskContext
 
 
 class BaseBuilder(Templater, ABC):
@@ -57,8 +46,8 @@ class BaseBuilder(Templater, ABC):
         )
 
 
-class BaseTaskOrGroup(BaseBuilder, ABC):
-    """Base Task or Group Model."""
+class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
+    """Core Airflow Task or TaskGroup Builder Model."""
 
     desc: str | None = Field(
         default=None,
@@ -69,7 +58,8 @@ class BaseTaskOrGroup(BaseBuilder, ABC):
         ),
     )
     upstream: list[str] = Field(
-        default_factory=list, description="A list of upstream task IDs"
+        default_factory=list,
+        description="A list of upstream task IDs",
     )
 
     def backend_build(
