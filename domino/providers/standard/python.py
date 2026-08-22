@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from airflow.providers.standard.operators.python import PythonOperator
 from pydantic import BaseModel, Field
 
-from ...models.task import BaseTask
+from ...models.task import BaseOperatorTask
 
 if TYPE_CHECKING:
     from airflow.sdk.definitions.dag import DAG
@@ -36,7 +36,7 @@ class PythonKwargs(BaseModel):
         }
 
 
-class PythonTask(BaseTask):
+class PythonTask(BaseOperatorTask):
     """Python Task."""
 
     type: Literal["python"] = Field(default="python")

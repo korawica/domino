@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from ...models.__types import BaseOperatorOrTaskGroup
 from ...models.context import BuildContext
-from ...models.task import BaseTask
+from ...models.task import BaseOperatorTask
 
 
 class OperatorInput(BaseModel):
@@ -16,7 +16,7 @@ class OperatorInput(BaseModel):
     )
 
 
-class OperatorTask(BaseTask):
+class OperatorTask(BaseOperatorTask):
     type: Literal["operator"] = "operator"
 
     def build(

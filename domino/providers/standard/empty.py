@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal
 from airflow.providers.standard.operators.empty import EmptyOperator
 from pydantic import Field
 
-from ...models.task import BaseTask
+from ...models.task import BaseOperatorTask
 
 if TYPE_CHECKING:
     from airflow.sdk.definitions.dag import DAG
@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ...models.context import BuildContext
 
 
-class EmptyTask(BaseTask):
+class EmptyTask(BaseOperatorTask):
     """Empty Task.
 
     !!! tip "Airflow Operator: `airflow.providers.standard.operators.empty.EmptyOperator`"

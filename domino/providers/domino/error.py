@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from domino.models.__types import BaseOperatorOrTaskGroup
 from domino.models.context import BuildContext
 
-from ...models.task import BaseTask
+from ...models.task import BaseOperatorTask
 
 
 class ErrorOperator(BaseOperator):
@@ -21,7 +21,7 @@ class ErrorInput(BaseModel):
     message: str | None = Field(default=None)
 
 
-class ErrorTask(BaseTask):
+class ErrorTask(BaseOperatorTask):
     type: Literal["error"] = "error"
     input: ErrorInput = Field(
         default_factory=ErrorInput,

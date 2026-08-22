@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 
 from ...models.__types import BaseOperatorOrTaskGroup
 from ...models.context import BuildContext
-from ...models.task import BaseTask
+from ...models.task import BaseOperatorTask
 
 
 class DominoInput(BaseModel):
@@ -15,7 +15,7 @@ class DominoInput(BaseModel):
     )
 
 
-class DominoTask(BaseTask):
+class DominoTask(BaseOperatorTask):
     type: Literal["domino"] = "domino"
 
     def build(

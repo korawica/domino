@@ -6,7 +6,7 @@ from pydantic import Field
 from .builder import BaseAirflowTaskOrGroupBuilder
 
 
-class BaseTask(BaseAirflowTaskOrGroupBuilder, ABC):
+class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
     """Base Task Model."""
 
     id: str = Field(..., description="A unique identifier for the task.")
@@ -17,4 +17,17 @@ class BaseTask(BaseAirflowTaskOrGroupBuilder, ABC):
     )
     params: dict[str, Any] = Field(
         default_factory=dict, description="Parameters for the task."
+    )
+
+
+class BaseSensorTask(BaseOperatorTask, ABC):
+    """Base Sensor Model."""
+
+    poke_interval_sec: int = Field(
+        default=60,
+        description="The interval in seconds between each poke.",
+    )
+    timeout_sec: int = Field(
+        default=7 * 24 * 60 * 60,  # 7 days
+        description="The maximum time in seconds to wait for the sensor to succeed.",
     )
