@@ -16,6 +16,22 @@ tasks:
   - id: start
     type: empty
 
+  - id: process
+    type: group
+    upstreams: [start]
+    tasks:
+      - id: prepare
+        type: empty
+
+      - id: execute
+        type: empty
+        upstreams: [prepare]
+
+      - id: finalize
+        type: empty
+        upstreams: [execute]
+
   - id: end
     type: empty
-    upstreams: [start]
+    upstreams: [finalize]
+    trigger_rule: all_done
