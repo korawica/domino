@@ -4,7 +4,18 @@ from pydantic import Field
 
 from domino.models.builder import BaseBuilder
 
-from .standard import EmptyTask
+from .standard import EmptyTask, PythonTask
+
+Task = Annotated[
+    Union[
+        EmptyTask,
+        PythonTask,
+    ],
+    Field(
+        discriminator="type",
+        description="A tasks or a group of tasks.",
+    ),
+]
 
 
 class Group(BaseBuilder):
@@ -24,14 +35,6 @@ class Group(BaseBuilder):
         build_context: Any,
         task_group: Any | None = None,
     ) -> Any: ...
-
-
-Task = Annotated[
-    Union[EmptyTask,],
-    Field(
-        description="A tasks or a group of tasks.",
-    ),
-]
 
 
 TaskOrGroup = Annotated[

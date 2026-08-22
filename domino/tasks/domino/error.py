@@ -11,20 +11,20 @@ from domino.models.context import BuildContext
 from ...models.task import BaseTask
 
 
-class RaiseOperator(BaseOperator):
+class ErrorOperator(BaseOperator):
     def __init__(self, *args, message: str | None = None, **kwargs):
         super().__init__(*args, **kwargs)
         self.message = message
 
 
-class RaiseInput(BaseModel):
+class ErrorInput(BaseModel):
     message: str | None = Field(default=None)
 
 
-class RaiseTask(BaseTask):
-    type: Literal["raise"] = "raise"
-    input: RaiseInput = Field(
-        default_factory=RaiseInput,
+class ErrorTask(BaseTask):
+    type: Literal["error"] = "error"
+    input: ErrorInput = Field(
+        default_factory=ErrorInput,
         description="Input parameters for the raise task.",
     )
 
@@ -34,7 +34,7 @@ class RaiseTask(BaseTask):
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
     ) -> BaseOperatorOrTaskGroup:
-        return RaiseOperator(
+        return ErrorOperator(
             task_id=self.id,
             dag=dag,
             task_group=task_group,
