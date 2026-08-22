@@ -1,4 +1,4 @@
-from domino.tasks import Group
+from domino.providers import Group
 
 
 def test_group_model():

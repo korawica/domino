@@ -5,7 +5,7 @@ from airflow.sdk.definitions.taskgroup import TaskGroup
 from pydantic import Field
 
 from ..const import MAX_THREADS_BUILD_TASK_GROUP
-from ..tasks import Task
+from ..providers import Register
 from .builder import BaseBuilder
 
 if TYPE_CHECKING:
@@ -80,8 +80,8 @@ class Group(BaseBuilder):
         )
 
         # Start build tasks inside this task group mode.
-        # Move to use thread pool to speed up the building process.
-        # Use fail-fast strategy to stop immediately on first error.
+        #   Move to use thread pool to speed up the building process.
+        #   Use fail-fast strategy to stop immediately on first error.
         with ThreadPoolExecutor(MAX_THREADS_BUILD_TASK_GROUP) as executor:
             futures: list[Future] = [
                 executor.submit(
@@ -107,7 +107,7 @@ class Group(BaseBuilder):
 TaskOrGroup = Annotated[
     Union[
         Group,
-        Task,
+        Register,
     ],
     Field(
         discriminator="type",
