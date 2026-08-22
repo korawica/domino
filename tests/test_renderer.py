@@ -5,6 +5,7 @@ from jinja2 import UndefinedError
 from jinja2.exceptions import TemplateSyntaxError
 
 from domino.renderer import JinjaRender, PreserveUndefined, is_jinja
+from domino.utils import DotDict
 
 # ---------------------------------------------------------------------------
 # is_jinja
@@ -386,3 +387,24 @@ def test_walk_returns_unknown_type_untouched():
 
     obj = Opaque()
     assert JinjaRender().render(obj) is obj
+
+
+@pytest.mark.parametrize(
+    ("template_str", "expected"),
+    (
+        (
+            """{% for item in items %}
+            fullpath: {{ vars("bucket") }}/{{ item }}
+            {% endfor %}
+            """,
+            """""",
+        )
+    ),
+)
+def test_render_template_partial_with_full_context(template_str, expected):
+    _ = DotDict(
+        {
+            "bucket": "my-bucket",
+            "items": ["file1.txt", "file2.txt"],
+        }
+    )

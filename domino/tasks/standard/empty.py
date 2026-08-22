@@ -13,6 +13,8 @@ if TYPE_CHECKING:
 
 
 class EmptyTask(BaseTask):
+    """Empty Task."""
+
     type: Literal["empty"] = Field(default="empty")
 
     def build(
