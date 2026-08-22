@@ -17,9 +17,21 @@ if TYPE_CHECKING:
     from .context import BuildContext, TaskContext
 
 
-class BaseBuilder(Templater, ABC):
-    """Base Builder Model."""
+class DominoBuilderMixin(ABC):
+    @abstractmethod
+    def build(self, build_context: BuildContext) -> None:
+        """Object building method for any builder object.
 
+        Args:
+            build_context (BuildContext):
+                A Context data that was created from the DAG Generator object.
+        """
+        raise NotImplementedError(
+            "This Builder object should implement build method."
+        )
+
+
+class AirflowBuilderMixin(ABC):
     @abstractmethod
     def build(
         self,
@@ -46,8 +58,12 @@ class BaseBuilder(Templater, ABC):
         )
 
 
-class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
-    """Core Airflow Task or TaskGroup Builder Model."""
+class BaseAirflowBuilder(Templater, AirflowBuilderMixin, ABC):
+    """Base Builder Model."""
+
+
+class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
+    """Base Airflow Task or TaskGroup Builder Model."""
 
     id: str = Field(..., description="A unique identifier")
     desc: str | None = Field(

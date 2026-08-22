@@ -6,7 +6,7 @@ from pydantic import Field
 
 from ..const import MAX_THREADS_BUILD_TASK_GROUP
 from ..providers import Register
-from .builder import BaseBuilder
+from .builder import BaseAirflowTaskOrGroupBuilder
 
 if TYPE_CHECKING:
     from airflow import DAG
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from .context import BuildContext
 
 
-class Group(BaseBuilder):
+class Group(BaseAirflowTaskOrGroupBuilder):
     """Group Model."""
 
     id: str = Field(..., description="A unique identifier for the task group.")

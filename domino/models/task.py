@@ -3,10 +3,10 @@ from typing import Any
 
 from pydantic import Field
 
-from .builder import CoreAirflowTaskOrGroupBuilder
+from .builder import BaseAirflowTaskOrGroupBuilder
 
 
-class BaseTask(CoreAirflowTaskOrGroupBuilder, ABC):
+class BaseTask(BaseAirflowTaskOrGroupBuilder, ABC):
     """Base Task Model."""
 
     id: str = Field(..., description="A unique identifier for the task.")
