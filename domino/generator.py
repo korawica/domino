@@ -1,7 +1,7 @@
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING, Any
 
 from .loader import SingleDagLoader
 from .utils import get_dags_path
@@ -21,7 +21,7 @@ class SingleDagGenerator:
 
     __slots__ = (
         "path",
-        "is_under_dags",
+        "is_under_dags_dir",
         "loader",
         "conf",
         "on_success_callback",
@@ -30,8 +30,6 @@ class SingleDagGenerator:
         "task_objects",
         "airflow_operators",
     )
-
-    dag_filename: ClassVar[str] = r"dag\.(yml|yaml)"
 
     def validate_path(self, path: Path | str) -> Path:
         """Validate the path parameter that passing for generating Airflow DAG."""
@@ -46,7 +44,7 @@ class SingleDagGenerator:
             and path != dags_path
             and dags_path not in path
         ):
-            self.is_under_dags = True
+            self.is_under_dags_dir = True
             logger.warning(
                 f"⚠️ The template path: {path} is not under the Airflow "
                 f"``dags_folder``, {dags_path}."
@@ -71,7 +69,7 @@ class SingleDagGenerator:
         Args:
             path (Path | str): Path to the DAG template folder.
         """
-        self.is_under_dags = True
+        self.is_under_dags_dir = True
         self.path = self.validate_path(path=path)
 
         self.on_success_callback = on_success_callback or []

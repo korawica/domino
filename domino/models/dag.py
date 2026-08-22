@@ -27,6 +27,7 @@ class Dag(BaseModel):
         description="A set of labels associated with the DAG.",
     )
 
+    # Task models
     tasks: list[Task] = Field(
         description="A list of tasks associated with the DAG.",
     )
@@ -34,6 +35,7 @@ class Dag(BaseModel):
     def build(
         self,
     ) -> DAG:
+        """Build the Airflow DAG from the DAG model."""
         dag = DAG(
             dag_id=self.id,
         )
