@@ -1,8 +1,6 @@
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Union
 
 from pydantic import Field
-
-from domino.models.builder import BaseBuilder
 
 from .standard import EmptyTask, PythonTask
 

@@ -3,8 +3,8 @@ from typing import Any, Literal
 from airflow import DAG
 from pydantic import BaseModel, Field
 
-from ..tasks import Task
 from .label import Label
+from .task_group import TaskOrGroup
 
 
 class Dag(BaseModel):
@@ -56,7 +56,7 @@ class Dag(BaseModel):
     )
 
     # Task models
-    tasks: list[Task] = Field(
+    tasks: list[TaskOrGroup] = Field(
         description="A list of tasks associated with the DAG.",
     )
 
