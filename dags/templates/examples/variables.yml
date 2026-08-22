@@ -1,0 +1,6 @@
+type: variable
+stages:
+  dev:
+    scope: "examples"
+  prod:
+    scope: "examples"

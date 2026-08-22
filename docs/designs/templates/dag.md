@@ -7,14 +7,14 @@ id: <dag-id>
 type: dag
 name: <DAG Display Name>
 desc: <Description of the DAG>
+labels:
+  team: admin
+  priority: p5
+  domain: inventory
+  system: internal
 tags:
   - batch
   - hourly
-labels:
-  priority: high
-  team: data
-  domain: inventory
-  system: pos
 
 schedule: "0 * * * *"
 start_date: "2023-01-01T00:00:00Z"
@@ -27,12 +27,12 @@ max_consecutive_failed_dag_runs: null
 dagrun_timeout_sec: null
 
 tasks:
-  - id: task-id
-    type: task
+  - id: <task-id>
+    type: <task-type>
 
-  - id: task-id
-    type: task
-    upstream: ["task-id"]
+  - id: <task-id>
+    type: <task-type>
+    upstream: ["<task-id>"]
     trigger_rule: all_success
 ```
 
@@ -47,10 +47,10 @@ tags:
   - batch
   - hourly
 labels:
-  priority: high
-  team: data
+  priority: p5
+  team: admin
   domain: inventory
-  system: pos
+  system: internal
 ```
 
 ## Schedule
