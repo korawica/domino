@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Callable
 from pathlib import Path
 
 from .utils import get_dags_path
@@ -12,6 +13,7 @@ class DagGenerator:
     def __init__(
         self,
         path: Path | str,
+        python_callables: dict[str, Callable[..., None]] | None = None,
     ) -> None:
         """Initialize the DAG Generator.
 
@@ -28,3 +30,5 @@ class DagGenerator:
                 f"⚠️ The template path: {self.path} is not under the Airflow "
                 f"``dags_folder``, {dags_path}."
             )
+
+        self.python_callables = python_callables or {}

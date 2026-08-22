@@ -1,71 +1,14 @@
-from pathlib import Path
 from typing import Any, Self
 
-from airflow.configuration import conf
-from airflow.sdk import Label
+# Sentinel used instead of a two-step `key in d` + `d[key]` (2 hash lookups)
+# so every traversal step costs exactly one hash lookup instead of two.
+_MISSING = object()
 
-from .const import NOTSET
-from .models.context import TaskContext
-
-
-def get_dags_path() -> Path | None:
-    """Get the Airflow DAGs folder path from the Airflow configuration.
-
-    Returns:
-        str: The Airflow DAGs folder path.
-    """
-    path_str: str | None = conf.get("core", "dags_folder", fallback=None)
-    if path_str:
-        return Path(path_str)
-    return None
-
-
-def set_upstream_and_teardown(
-    tasks: dict[str, TaskContext],
-    label_sep_on_task_id: str = "::",
-) -> None:  # NOSONAR
-    """Set Upstream and Teardown Task for each tasks in mapping.
-
-    Args:
-        tasks (dict[str, TaskContext]): A mapping of task ID and TaskContext dict
-            object.
-        label_sep_on_task_id (str, optional): A separator string for the task ID
-            to split the label from the task ID. Defaults to "::".
-    """
-    for task in tasks:
-        task_mapped: TaskContext = tasks[task]
-
-        # Set upstream task if it is defined in the template.
-        if upstream := task_mapped["upstream"]:
-            for t in upstream:
-                try:
-                    if label_sep_on_task_id in t:
-                        t, label = t.split(
-                            label_sep_on_task_id,
-                            maxsplit=1,
-                        )
-                        if label:
-                            task_mapped["task"].set_upstream(
-                                tasks[t]["task"], edge_modifier=Label(label)
-                            )
-                            continue
-
-                    # Default case without edge modifier
-                    task_mapped["task"].set_upstream(tasks[t]["task"])
-                except KeyError as e:
-                    raise KeyError(
-                        f"Task ids, {e}, does not found from the template.\n"
-                        f"The current task key: {list(tasks.keys())}"
-                    ) from e
-        # Set setup & teardown task if it is defined in the template.
-        if teardown := task_mapped.get("teardown"):
-            try:
-                task_mapped["task"].as_teardown(setups=tasks[teardown]["task"])
-            except KeyError as e:
-                raise KeyError(
-                    f"Setups task id, {e}, does not found from the template.\n"
-                    f"The current task key: {list(tasks.keys())}"
-                ) from e
+# Distinct sentinel for get_raise(): marks "caller passed no default at all",
+# as opposed to _MISSING which marks "key not found in the dict". Needed so
+# get_raise(key, default=None) (explicit None) can be told apart from
+# get_raise(key) (no default -> should raise on a truly missing key).
+NOTSET = object()
 
 
 class DotDict(dict):
@@ -76,7 +19,7 @@ class DotDict(dict):
     - Strict mode: raises KeyError if missing
     - Safe mode: use '?' to skip missing keys
 
-    !!! examole
+    !!! example
 
         Make dict to dotable:
 
@@ -89,6 +32,12 @@ class DotDict(dict):
         new_value = dot_dict["level1.level2.new_key"]  # "new_value"
         ```
     """
+
+    # DotDict never stores per-instance attributes beyond the dict's own
+    # items, so this stops every instance from lazily growing a `__dict__`
+    # (saves memory + a small amount of instantiation overhead).
+    # Remove this line if you ever need `some_dot_dict.custom_attr = ...`.
+    __slots__ = ()
 
     def _traverse(
         self,
@@ -115,8 +64,20 @@ class DotDict(dict):
                 safe = True
                 key = key[:-1]
 
-            if isinstance(value, dict) and key in value:
-                value = value[key]
+            if isinstance(value, dict):
+                # Single hash lookup via the unbound dict.get instead of
+                # `key in value` followed by `value[key]` (2 lookups).
+                # Using the unbound method also guarantees this stays a
+                # plain dict lookup even if a nested value happens to be
+                # a DotDict itself, instead of recursing into DotDict.get.
+                found = dict.get(value, key, _MISSING)
+                if found is _MISSING:
+                    if safe:
+                        return default
+                    if raise_error:
+                        raise KeyError(".".join(keys))
+                    return default
+                value = found
             else:
                 if safe:
                     return default
@@ -161,7 +122,7 @@ class DotDict(dict):
             key.split("."), default=default, allow_safe=True, raise_error=False
         )
 
-    def set(self, key, value: Any | None) -> None:
+    def set(self, key, value: Any | None = None) -> None:
         """Setter dict method.
 
         Args:
@@ -172,12 +133,10 @@ class DotDict(dict):
             KeyError: If strict mode is enabled and a key in the path is missing.
             TypeError: If a non-dict is encountered in the path.
         """
-
-        if not isinstance(key, str):
-            self[key] = value
-            return
-
-        if "." not in key:
+        # Combines the two original early-return checks
+        # (`not isinstance(key, str)` and `"." not in key`) into one
+        # short-circuited branch.
+        if not isinstance(key, str) or "." not in key:
             self[key] = value
             return
 
@@ -186,23 +145,26 @@ class DotDict(dict):
         strict: bool = True
 
         for k in keys[:-1]:
-            safe = k.endswith("?")
-            if safe:
+            if k.endswith("?"):
                 strict = False
                 k = k[:-1]
 
-            if k not in d:
+            # One hash lookup (dict.get) instead of `k not in d` + `d[k] = {}`
+            # + `d = d[k]` (up to 3 lookups). When a new dict is created we
+            # keep the reference directly instead of looking it back up.
+            nxt = dict.get(d, k, _MISSING)
+            if nxt is _MISSING:
                 if strict:
                     raise KeyError(f"Key path '{key}' not found")
-                d[k] = {}
-            d = d[k]
-
-            if not isinstance(d, dict):
+                nxt = {}
+                d[k] = nxt
+            elif not isinstance(nxt, dict):
                 raise TypeError(f"Path '{k}' is not a dict")
+            d = nxt
 
         last_key = keys[-1]
         if last_key.endswith("?"):
-            strict: bool = False
+            strict = False
             last_key = last_key[:-1]
 
         if strict and last_key not in d:
@@ -254,11 +216,14 @@ class DotDict(dict):
             KeyError: If the key is missing, no ``default`` was given, and
                 safe mode (``?``) is not active.
         """
-        has_default: bool = default != NOTSET
+        has_default: bool = default is not NOTSET
 
         if not isinstance(key, str):
-            if key in self:
-                return super().__getitem__(key)
+            # Single lookup via dict.get + sentinel, instead of
+            # `key in self` followed by a second `super().__getitem__(key)`.
+            found = dict.get(self, key, _MISSING)
+            if found is not _MISSING:
+                return found
             if has_default:
                 return default
             raise KeyError(key)
@@ -272,12 +237,19 @@ class DotDict(dict):
                 raise_error=not has_default,
             )
 
-        # Non-dotted key
+        # Non-dotted key. NOTE: unlike get(), this strips a trailing '?'
+        # even without a dot, so get_raise("foo?") checks "foo" rather than
+        # a literal key named "foo?". get() does not do this for plain keys
+        # (it only strips '?' inside dotted paths) -- so get_raise(key,
+        # default=X) is not guaranteed identical to get(key, X) for a plain
+        # key ending in '?'. Flagging this rather than silently unifying it,
+        # since fixing it means changing get()'s existing behavior too.
         is_safe: bool = key.endswith("?")
         lookup: str = key[:-1] if is_safe else key
 
-        if lookup in self:
-            return super().__getitem__(lookup)
+        found = dict.get(self, lookup, _MISSING)
+        if found is not _MISSING:
+            return found
         if is_safe or has_default:
             return default if has_default else None
         raise KeyError(key)

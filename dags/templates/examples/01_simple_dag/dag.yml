@@ -1,0 +1,21 @@
+id: 01_simple_dag
+type: dag
+desc: This is a simple DAG for showing how to write a DAG template.
+
+owners:
+  - whoami@email.com
+labels:
+  team: admin
+  system: example
+  priority: p5
+tags:
+  - example
+  - template
+
+tasks:
+  - id: start
+    type: empty
+
+  - id: end
+    type: empty
+    upstreams: [start]

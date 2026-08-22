@@ -13,7 +13,17 @@ if TYPE_CHECKING:
 
 
 class EmptyTask(BaseTask):
-    """Empty Task."""
+    """Empty Task.
+
+    !!! tip "Airflow Operator: `airflow.providers.standard.operators.empty.EmptyOperator`"
+
+    Examples:
+
+        ```yml
+        id: task_id
+        type: empty
+        ```
+    """
 
     type: Literal["empty"] = Field(default="empty")
 
