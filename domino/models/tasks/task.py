@@ -4,7 +4,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
-from ..base_models.builder import BaseTaskOrGroup
+from domino.models.tasks.builder import BaseTaskOrGroup
 
 
 class Task(BaseTaskOrGroup):
