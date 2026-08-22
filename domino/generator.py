@@ -53,7 +53,6 @@ class SingleDagGenerator:
 
     def __init__(
         self,
-        /,
         path: Path | str,
         *,
         # Backend callbacks

@@ -1,3 +1,5 @@
+from collections.abc import Callable
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, NotRequired, TypedDict
 
 from .__types import BaseOperator, BaseOperatorOrTaskGroup
@@ -5,6 +7,7 @@ from .__types import BaseOperator, BaseOperatorOrTaskGroup
 if TYPE_CHECKING:
     from threading import Lock
 
+    from .builder import BaseAirflowTaskOrGroupBuilder
     from .label import Label
 
 
@@ -19,10 +22,14 @@ class TaskContext(TypedDict):
 class BuildContext(TypedDict):
     """Building Context type dict."""
 
+    path: Path
     label: Label
+
+    # task generator context
     tasks: dict[str, TaskContext]
     tasks_lock: NotRequired[Lock]
 
-    task_objects: dict[str, Any]
-    python_callables: dict[str, Any]
+    # assets context
+    task_objects: dict[str, BaseAirflowTaskOrGroupBuilder]
+    python_callables: dict[str, Callable[..., Any]]
     airflow_operators: dict[str, BaseOperator]
