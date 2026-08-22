@@ -61,7 +61,7 @@ class SingleDagGenerator:
         # Backend assets
         python_callables: dict[str, Callable[..., None]] | None = None,
         task_objects: dict[str, BaseTask] | None = None,
-        airflow_operators: dict[str, BaseOperator] | None = None,
+        airflow_operators: dict[str, type[BaseOperator]] | None = None,
     ) -> None:
         """Initialize the DAG Generator.
 

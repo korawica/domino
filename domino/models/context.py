@@ -32,4 +32,4 @@ class BuildContext(TypedDict):
     # assets context
     task_objects: dict[str, BaseAirflowTaskOrGroupBuilder]
     python_callables: dict[str, Callable[..., Any]]
-    airflow_operators: dict[str, BaseOperator]
+    airflow_operators: dict[str, type[BaseOperator]]

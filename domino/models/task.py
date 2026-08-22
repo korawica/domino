@@ -1,9 +1,12 @@
 from abc import ABC
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from pydantic import Field
 
 from .builder import BaseAirflowTaskOrGroupBuilder
+
+if TYPE_CHECKING:
+    from .context import BuildContext
 
 
 class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
@@ -45,6 +48,17 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
         default_factory=list,
         description="A list of outlets for the task.",
     )
+
+    def task_kwargs(self, build_context: BuildContext) -> dict[str, Any]:
+        set_kws = self.model_dump(
+            by_alias=True,
+            exclude_unset=True,
+        )
+
+        kws: dict[str, Any] = {"task_id": self.id}
+        _ = build_context
+
+        return set_kws | kws
 
 
 class BaseSensorTask(BaseOperatorTask, ABC):
