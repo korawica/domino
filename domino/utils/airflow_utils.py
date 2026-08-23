@@ -6,6 +6,18 @@ from airflow.sdk import Label
 from domino.models.context import TaskContext
 
 
+def get_airflow_version() -> tuple[int, int, int]:
+    """Get the Airflow version as a tuple of integers.
+
+    Returns:
+        tuple[int, int, int]: The Airflow version.
+    """
+    from airflow import version
+
+    versions = list(map(int, version.split(".")))
+    return versions[0], versions[1], versions[2]
+
+
 def get_dags_path() -> Path | None:
     """Get the Airflow DAGs folder path from the Airflow configuration.
 

@@ -7,25 +7,26 @@ from jinja2.exceptions import TemplateSyntaxError
 from domino.renderer import JinjaRender, PreserveUndefined, is_jinja
 from domino.utils import DotDict
 
-# ---------------------------------------------------------------------------
-# is_jinja
-# ---------------------------------------------------------------------------
-
 
 @pytest.mark.parametrize(
     ("value", "pure", "expected"),
     [
+        # pure testcases
         ("{{ x }}", True, True),
         ("{% if x %}{% endif %}", True, True),
         ("{# c #}", True, True),
         ("hello {{ x }}", True, False),
         ("plain text", True, False),
         ("", True, False),
+        # not pure testcases
+        ("{{ x }}", False, True),
+        ("{% if x %}{% endif %}", False, True),
+        ("{# c #}", False, True),
         ("hello {{ x }}", False, True),
         ("plain text", False, False),
     ],
 )
-def test_is_jinja(value, pure, expected):
+def test_is_jinja(value: str, pure: bool, expected: bool):
     assert is_jinja(value, pure=pure) is expected
 
 
@@ -115,17 +116,16 @@ def test_preserve_undefined_str_raises():
         ("{% raw %}{ {'a': 1} }{% endraw %}", "{ {'a': 1} }"),  # set of dict
         ("{% raw %}{ [1, 2] }{% endraw %}", "{ [1, 2] }"),  # set of list
         ("{% raw %}{{ }}{% endraw %}", "{{ }}"),  # set of empty dict
+        # ``NativeEnvironment`` collapses empty output to ``None``.
+        #   Documented here so the behavior is intentional.
+        ("{% raw %}{% endraw %}", None),
     ],
 )
 def test_render_partial_preserves_unresolved(template_str, expected):
-    renderer = JinjaRender(template_fields=("key",))
-    assert renderer.render_partial(template_str) == expected
-
-
-def test_render_partial_empty_raw_returns_none():
-    # ``NativeEnvironment`` collapses empty output to ``None``.
-    # Documented here so the behavior is intentional.
-    assert JinjaRender().render_partial("{% raw %}{% endraw %}") is None
+    if expected is None:
+        assert JinjaRender().render_partial(template_str) is None
+    else:
+        assert JinjaRender().render_partial(template_str) == expected
 
 
 # ---------------------------------------------------------------------------
@@ -391,20 +391,26 @@ def test_walk_returns_unknown_type_untouched():
 
 @pytest.mark.parametrize(
     ("template_str", "expected"),
-    (
+    [
         (
             """{% for item in items %}
             fullpath: {{ vars("bucket") }}/{{ item }}
             {% endfor %}
             """,
-            """""",
+            """{% for item in items %}
+            fullpath: bucket_name/{{ item }}
+            {% endfor %}
+            """,
         )
-    ),
+    ],
 )
 def test_render_template_partial_with_full_context(template_str, expected):
-    _ = DotDict(
+    variables = DotDict(
         {
-            "bucket": "my-bucket",
+            "bucket": "bucket_name",
+            "prefix": "prefix_name/key.json",
             "items": ["file1.txt", "file2.txt"],
         }
-    )
+    ).get_raise
+    renderer = JinjaRender(user_defined_macros={"vars": variables})
+    assert renderer.render_partial(template_str) == expected

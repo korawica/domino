@@ -23,8 +23,9 @@ def is_jinja(s: str, pure: bool = True) -> bool:
     """Check whether a string contains a Jinja tag.
 
     Args:
-        s: The string to inspect.
-        pure: If ``True`` (default), the whole string must consist of
+        s (str): The string to inspect.
+        pure (bool, default ``True``):
+            If ``True`` , the whole string must consist of
             Jinja tags. If ``False``, any string containing at least
             one tag qualifies.
 
@@ -73,16 +74,6 @@ class JinjaRender:
     - :attr:`partial_env` — partial mode; unresolved names round-trip
       as literal text so the output can be rendered again later.
 
-    Public API:
-
-    - :meth:`render` — strict render.
-    - :meth:`render_partial` — partial render (mixed inline templates
-      preserve *per expression*: ``"{{ pkg }}-{{ run }}"`` becomes
-      ``"abc-{{ run }}"`` if only ``pkg`` is registered).
-    - :meth:`render_template` / :meth:`render_template_partial` —
-      render only the keys listed in :attr:`template_fields`.
-    - :meth:`set_globals` — inject more globals between steps.
-
     Examples:
         >>> r = JinjaRender(user_defined_macros={"pkg_var": "abc"})
         >>> partial = r.render_partial("{{ pkg_var }}-{{ runtime_var }}")
@@ -119,23 +110,26 @@ class JinjaRender:
         template_fields_excluded: tuple[str, ...] | None = None,
         user_defined_filters: dict[str, Callable] | None = None,
         user_defined_macros: dict[str, Callable | Any] | None = None,
+        extensions: list[str] | None = None,
     ) -> None:
         self.template_fields = template_fields or ()
         self.template_fields_excluded = template_fields_excluded or ()
         self.user_defined_filters = user_defined_filters or {}
         self.user_defined_macros = user_defined_macros or {}
 
+        _extensions: list[str] = extensions or ["jinja2.ext.do"]
+
         self.env: Environment = NativeEnvironment(
-            undefined=Undefined, extensions=["jinja2.ext.do"]
+            undefined=Undefined, extensions=_extensions
         )
         self.string_env: Environment = Environment(
-            undefined=Undefined, extensions=["jinja2.ext.do"]
+            undefined=Undefined, extensions=_extensions
         )
         self.partial_env: Environment = NativeEnvironment(
-            undefined=PreserveUndefined, extensions=["jinja2.ext.do"]
+            undefined=PreserveUndefined, extensions=_extensions
         )
         self.partial_string_env: Environment = Environment(
-            undefined=PreserveUndefined, extensions=["jinja2.ext.do"]
+            undefined=PreserveUndefined, extensions=_extensions
         )
         for env in (
             self.env,
@@ -271,11 +265,11 @@ class JinjaRender:
                 return self.env.from_string(value).render()
             except TypeError:
                 # ``NativeEnvironment`` runs ``ast.literal_eval`` on
-                # the rendered text and can raise ``TypeError`` for
-                # legit output like ``{{ 1 }}`` (from ``{% raw %}``)
-                # which parses as an unhashable set-of-set. Fall
-                # back to plain string rendering — same globals,
-                # same strict undefined.
+                #   the rendered text and can raise ``TypeError`` for
+                #   legit output like ``{{ 1 }}`` (from ``{% raw %}``)
+                #   which parses as an unhashable set-of-set. Fall
+                #   back to plain string rendering — same globals,
+                #   same strict undefined.
                 return self.string_env.from_string(value).render()
 
         def _try(source: str) -> Any:
@@ -285,16 +279,16 @@ class JinjaRender:
                 )
             except TemplateAssertionError:
                 # Unknown filter/test/macro at parse time.
-                # TemplateSyntaxError (parent) still propagates.
+                #   TemplateSyntaxError (parent) still propagates.
                 return source
             except UndefinedError:
                 return source
             except TypeError:
                 # NativeEnvironment feeds the rendered text through
-                # ``ast.literal_eval``; some strings (e.g. ``{{ 1 }}``
-                # emitted by ``{% raw %}...{% endraw %}``) parse as
-                # unhashable literals and raise ``TypeError``.
-                # Fall back to a plain string render.
+                #   ``ast.literal_eval``; some strings (e.g. ``{{ 1 }}``
+                #   emitted by ``{% raw %}...{% endraw %}``) parse as
+                #   unhashable literals and raise ``TypeError``.
+                #   Fall back to a plain string render.
                 try:
                     return self.partial_string_env.from_string(source).render()
                 except TemplateAssertionError, UndefinedError:
@@ -302,9 +296,9 @@ class JinjaRender:
             return source if isinstance(rendered, Undefined) else rendered
 
         # Splittable = no blocks/comments AND (multiple tags OR one
-        # tag not covering the entire string). The regex has a
-        # capturing group, so re.split alternates literal text (even
-        # indices) with Jinja tags (odd indices).
+        #   tag not covering the entire string). The regex has a
+        #   capturing group, so re.split alternates literal text (even
+        #   indices) with Jinja tags (odd indices).
         if "{%" not in value and "{#" not in value:
             matches = JINJA_PATTERN.findall(value)
             if len(matches) > 1 or (len(matches) == 1 and matches[0] != value):

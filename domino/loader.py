@@ -4,7 +4,9 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
-from yaml import ConstructorError, ParserError, safe_load
+from yaml import safe_load
+from yaml.constructor import ConstructorError
+from yaml.parser import ParserError
 
 from .models.dag import Dag
 
