@@ -1,6 +1,4 @@
-from domino.generator import SingleDagGenerator
+from domino.generator import DagFactory
 
-gen = SingleDagGenerator(
-    path=__file__,
-)
-gen.build_airflow_dag_to_globals(globals())
+factory = DagFactory(path=__file__)
+factory.build_airflow_dag_to_globals(globals())

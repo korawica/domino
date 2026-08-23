@@ -6,3 +6,5 @@ MAX_THREADS_BUILD_TASK_GROUP: Final[int] = int(
 )
 
 NOTSET: Final[str] = "__notset__"
+
+VAR_DOMINO_UNITTEST_MODE: Final[str] = "DOMINO_UNITTEST_MODE"

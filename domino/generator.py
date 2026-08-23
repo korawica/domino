@@ -3,8 +3,12 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from .loader import SingleDagLoader
-from .utils import get_dags_path
+from pydantic import ValidationError
+
+from .const import VAR_DOMINO_UNITTEST_MODE
+from .loader import DagLoader
+from .renderer import JinjaRender
+from .utils import get_bool_env, get_dags_path
 
 if TYPE_CHECKING:
     from airflow import DAG
@@ -16,8 +20,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger("domino")
 
 
-class SingleDagGenerator:
-    """Single DAG Generator object."""
+class DagFactory:
+    """DAG Factory object."""
 
     __slots__ = (
         "path",
@@ -29,6 +33,7 @@ class SingleDagGenerator:
         "python_callables",
         "task_objects",
         "airflow_operators",
+        "on_task_callbacks",
     )
 
     def validate_path(self, path: Path | str) -> Path:
@@ -58,6 +63,7 @@ class SingleDagGenerator:
         # Backend callbacks
         on_success_callback: list[Any] | None = None,
         on_failure_callback: list[Any] | None = None,
+        on_task_callbacks: dict[str, Any] | None = None,
         # Backend assets
         python_callables: dict[str, Callable[..., None]] | None = None,
         task_objects: dict[str, BaseTask] | None = None,
@@ -71,31 +77,49 @@ class SingleDagGenerator:
         self.is_under_dags_dir = True
         self.path = self.validate_path(path=path)
 
+        # Backend DAG callbacks
         self.on_success_callback = on_success_callback or []
         self.on_failure_callback = on_failure_callback or []
+
+        # Backend task callbacks for specific tasks.
+        self.on_task_callbacks = on_task_callbacks or {}
 
         # Backend assets for specific tasks.
         self.python_callables = python_callables or {}
         self.task_objects = task_objects or {}
         self.airflow_operators = airflow_operators or {}
 
-        self.loader = SingleDagLoader(self.path)
+        self.loader = DagLoader(self.path)
         self.conf: Dag | None = None
 
     @property
     def dag(self) -> Dag:
-        """Get the DAG model from the DAG template."""
+        """Return the DAG model from the DAG template."""
         dag: Dag | None = self.conf
         if dag is None:
-            dag: Dag = self.loader.read_dag()
-            self.conf = dag
-            return dag
+            jinja_renderer = JinjaRender()
+            data: dict[str, Any] = self.loader.read_dag()
+            name: str = data["id"]
+            try:
+                dag: Dag = Dag.model_validate(
+                    obj=data,
+                    context={
+                        "task_callbacks": self.on_task_callbacks,
+                        "jinja_renderer": jinja_renderer,
+                    },
+                )
+                self.conf = dag
+                return dag
+            except ValidationError:
+                logger.exception(
+                    f"❌ Validate Dag: {name!r}, failed with validation error"
+                )
+                raise
         return dag
 
     def build(self) -> DAG:
-        model: Dag = self.dag
-        dag = model.build()
-        return dag
+        """Build Airflow DAG object from the DAG model."""
+        return self.dag.build()
 
     def build_airflow_dag_to_globals(self, gb: dict[str, Any]) -> None:
         """Build Airflow DAG to the globals.
@@ -103,6 +127,13 @@ class SingleDagGenerator:
         Args:
             gb (dict[str, Any]): The Global variables.
         """
+        if get_bool_env(VAR_DOMINO_UNITTEST_MODE):  # pragma: no cov
+            logger.warning(
+                "⏭️ Skip for unittest environment from set the "
+                "``DOMINO_UNITTEST_MODE`` variable."
+            )
+            return
+
         dag: DAG = self.build()
         gb[dag.dag_id] = dag
 
@@ -112,5 +143,4 @@ class SingleDagGenerator:
         Returns:
             dict[str, Any]: A DAG template data after passing all variables.
         """
-        model: Dag = self.dag
-        return model.model_dump()
+        return self.dag.model_dump()

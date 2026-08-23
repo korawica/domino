@@ -8,8 +8,6 @@ from yaml import safe_load
 from yaml.constructor import ConstructorError
 from yaml.parser import ParserError
 
-from .models.dag import Dag
-
 logger = logging.getLogger("domino.loader")
 
 
@@ -41,11 +39,11 @@ def extract_yaml(file: Path) -> tuple[str, dict[str, Any] | list[Any]]:
     return raw_data, data
 
 
-def read_conf(  # NOSONAR
+def read_yaml_conf(  # NOSONAR
     path: Path,
     id_key: str,
     conf_type: tuple[str, ...],
-    pattern: str,
+    prefix_pattern: str,
     only_one_conf: bool = False,
     pre_validate: Callable | None = None,
     include_raw_content: bool = True,
@@ -58,7 +56,7 @@ def read_conf(  # NOSONAR
         id_key (str): An ID key checking in the config data.
         conf_type (tuple[str, ...]): A tuple of type value that checking in
             the config data.
-        pattern (str): A file pattern for searching files in the conf path.
+        prefix_pattern (str): A file pattern for searching files in the conf path.
         only_one_conf (bool): A flag for checking the conf data should contain
             only one config data or not.
         pre_validate (Callable | None): A function that checks the conf data
@@ -125,9 +123,15 @@ def read_conf(  # NOSONAR
 
         return model
 
-    files: list[Path] = list(path.rglob(pattern))
+    files: list[Path] = [
+        f
+        for f in path.rglob(f"{prefix_pattern}.y*ml")
+        if f.name.endswith((".yml", ".yaml"))
+    ]
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
-        conf = [r for r in executor.map(_process, files) if r is not None]
+        conf: list[dict[str, Any]] = [
+            r for r in executor.map(_process, files) if r is not None
+        ]
 
     if not conf:
         logger.warning(
@@ -141,10 +145,23 @@ def read_conf(  # NOSONAR
     return conf
 
 
-class SingleDagLoader:
+class DagLoader:
+    """DAG Loader object.
+
+    This object using for loading the DAG template file and return the Dag model.
+    """
+
     __slots__ = ("path",)
 
     def __init__(self, path: Path):
         self.path = path
 
-    def read_dag(self) -> Dag: ...
+    def read_dag(self) -> dict[str, Any]:
+        conf = read_yaml_conf(
+            path=self.path,
+            id_key="id",
+            conf_type=("dag",),
+            prefix_pattern="dag",
+            only_one_conf=True,
+        )
+        return conf[0]

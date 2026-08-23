@@ -3,6 +3,7 @@ import os
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from threading import Lock
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock
 
@@ -50,8 +51,11 @@ def dag(test_path: Path) -> DAG:
     from airflow.sdk.definitions.dag import DAG
 
     return DAG(
-        dag_id="test_tasks",
-        start_date=datetime(2025, 1, 1),
+        dag_id="example",
+        schedule=None,
+        start_date=datetime(2026, 1, 1),
+        end_date=None,
+        catchup=False,
         template_searchpath=str(test_path.absolute()),
         render_template_as_native_obj=True,
     )
@@ -69,12 +73,11 @@ def setup_airflow_dags_path(monkeypatch, root_path: Path) -> Iterator[None]:
 def build_context(test_path: Path) -> BuildContext:
     return BuildContext(
         path=test_path,
-        loader=MagicMock(),
-        vars={},
         tasks={},
-        tools={},
-        operators={},
+        tasks_lock=Lock(),
         jinja_renderer=MagicMock(),
-        python_callers={},
         label=Label(),
+        task_objects={},
+        airflow_operators={},
+        python_callables={},
     )

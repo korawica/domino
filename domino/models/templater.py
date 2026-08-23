@@ -35,10 +35,18 @@ GLOB_VAR_PATTERN: Final[re.Pattern[str]] = re.compile(
 
 
 class Templater(BaseModel):
-    """Templater Model."""
+    """Templater model.
 
+    This model is a base model that will be used for any model that need to render
+    Jinja template fields. It will provide a method to render the template fields
+    using the provided Jinja renderer.
+    """
+
+    # The base template fields that will fix the fields that need to render Jinja
+    #   template.
     base_template_fields: ClassVar[tuple[str, ...]] = ()
 
+    # The dynamic template field class variables set
     template_fields: ClassVar[tuple[str, ...]] = ()
     template_fields_ext: ClassVar[dict[str, str]] = {}
 
@@ -64,7 +72,7 @@ class Templater(BaseModel):
         Returns:
             Any: The rendered data.
         """
-        data: Any = renderer.render(
+        data: Any = renderer.render_partial(
             data,
             template_ext=cls.template_fields_ext.get(name),
         )
@@ -99,19 +107,18 @@ class Templater(BaseModel):
         data: Any,
         info: ValidationInfo,
     ) -> Any:  # NOSONAR
-        """Pre Template Fields validator to add any extra template fields from
-        `template_fields_ext` class variable.
+        """Render template fields model validator.
 
         Args:
-            data (dict): A model data that will validate.
+            data (Any): A model data that will validate.
             info (ValidationInfo): A validation info object that contains
                 context data.
 
         Returns:
             dict | Any: A model data after render the template fields.
         """
-        # Check the ``jinja_renderer`` object pass to Pydantic context
-        #   before start model validation.
+        # Check the ``jinja_renderer`` object was passed to the Pydantic validation
+        #   information before start render the Jinja template.
         if (
             cls.base_template_fields + cls.template_fields
             and isinstance(data, dict)
