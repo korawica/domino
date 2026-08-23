@@ -20,7 +20,7 @@ class EmptyTask(BaseOperatorTask):
     Examples:
 
         ```yml
-        id: task_id
+        id: example
         type: empty
         ```
     """

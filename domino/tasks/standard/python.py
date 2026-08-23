@@ -37,7 +37,23 @@ class PythonKwargs(BaseModel):
 
 
 class PythonTask(BaseOperatorTask):
-    """Python Task."""
+    """Python Task.
+
+    Examples:
+
+        ```yml
+        id: example
+        type: python
+        inputs:
+          python_callable: my_function
+          op_args:
+            - arg1
+            - arg2
+          op_kwargs:
+            kwarg1: value1
+            kwarg2: value2
+        ```
+    """
 
     type: Literal["python"] = Field(default="python")
     inputs: PythonKwargs = Field(

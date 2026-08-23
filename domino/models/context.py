@@ -7,6 +7,7 @@ from .__types import BaseOperator, BaseOperatorOrTaskGroup
 if TYPE_CHECKING:
     from threading import Lock
 
+    from ..renderer import JinjaRender
     from .builder import BaseAirflowTaskOrGroupBuilder
     from .label import Label
 
@@ -20,16 +21,21 @@ class TaskContext(TypedDict):
 
 
 class BuildContext(TypedDict):
-    """Building Context type dict."""
+    """Building Context type dict.
+
+    This building context was created from the DAG Generator object and passed
+    to each task build method.
+    """
 
     path: Path
     label: Label
+    jinja_renderer: JinjaRender
 
     # task generator context
     tasks: dict[str, TaskContext]
     tasks_lock: NotRequired[Lock]
 
     # assets context
-    task_objects: dict[str, BaseAirflowTaskOrGroupBuilder]
+    task_objects: dict[str, type[BaseAirflowTaskOrGroupBuilder]]
     python_callables: dict[str, Callable[..., Any]]
     airflow_operators: dict[str, type[BaseOperator]]

@@ -13,7 +13,19 @@ if TYPE_CHECKING:
 
 
 class OperatorTask(BaseOperatorTask):
-    """Operator Task."""
+    """Operator Task.
+
+    Examples:
+
+        ```yml
+        id: example
+        type: operator
+        airflow_operator: operator_name
+        inputs:
+          operator_param_01: value_01
+          operator_param_02: value_02
+        ```
+    """
 
     type: Literal["operator"] = "operator"
     airflow_operator: str = Field(
