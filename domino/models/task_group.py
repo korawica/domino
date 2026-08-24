@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from typing import TYPE_CHECKING, Annotated, Literal, Union
 

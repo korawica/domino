@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import TYPE_CHECKING, Any, Literal
 
 from airflow.providers.standard.operators.python import PythonOperator

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable
 from re import DOTALL, VERBOSE, Pattern, compile
@@ -291,7 +293,7 @@ class JinjaRender:
                 #   Fall back to a plain string render.
                 try:
                     return self.partial_string_env.from_string(source).render()
-                except TemplateAssertionError, UndefinedError:
+                except (TemplateAssertionError, UndefinedError):
                     return source
             return source if isinstance(rendered, Undefined) else rendered
 
