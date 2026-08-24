@@ -1,11 +1,12 @@
 import logging
 import os
+import shutil
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 from threading import Lock
 from typing import TYPE_CHECKING
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -31,19 +32,19 @@ logging.getLogger("airflow.models.variable").setLevel(logging.CRITICAL)
 logging.getLogger("shapely.geos").setLevel(logging.WARNING)
 
 
-@pytest.fixture(scope="package")
+@pytest.fixture(scope="session")
 def test_path() -> Path:
     return Path(__file__).parent
 
 
-@pytest.fixture(scope="package")
-def root_path(test_path: Path) -> Path:
-    return test_path.parent
+@pytest.fixture(scope="session")
+def dags_path(test_path: Path) -> Iterator[Path]:
+    path: Path = test_path / "dags"
+    path.mkdir(parents=True, exist_ok=True)
 
+    yield path
 
-@pytest.fixture(scope="package")
-def dags_path(root_path: Path) -> Path:
-    return root_path / "dags"
+    shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture(scope="function")
@@ -62,11 +63,12 @@ def dag(test_path: Path) -> DAG:
 
 
 @pytest.fixture(autouse=True)
-def setup_airflow_dags_path(monkeypatch, root_path: Path) -> Iterator[None]:
-    monkeypatch.setattr(
-        "domino.generator.get_dags_path", lambda: root_path / "dags"
-    )
-    yield
+def setup_airflow_dags_path(dags_path: Path) -> Iterator[None]:
+    with patch(
+        "domino.factory.get_dags_path",
+        return_value=dags_path,
+    ):
+        yield
 
 
 @pytest.fixture(scope="function")

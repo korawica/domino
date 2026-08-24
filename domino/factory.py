@@ -7,6 +7,7 @@ from pydantic import ValidationError
 
 from .const import VAR_DOMINO_UNITTEST_MODE
 from .loader import DagLoader
+from .models.dag import Dag
 from .renderer import JinjaRender
 from .utils import get_bool_env, get_dags_path
 
@@ -14,7 +15,6 @@ if TYPE_CHECKING:
     from airflow import DAG
     from airflow.sdk.bases.operator import BaseOperator
 
-    from .models.dag import Dag
     from .models.task import BaseTask
 
 logger = logging.getLogger("domino")
@@ -44,10 +44,13 @@ class DagFactory:
         if not path.is_dir():
             path = path.parent
 
+        print(path)
+        print(get_dags_path())
+
         if (
             (dags_path := get_dags_path())
             and path != dags_path
-            and dags_path not in path
+            and not path.is_relative_to(dags_path)
         ):
             self.is_under_dags_dir = True
             logger.warning(
