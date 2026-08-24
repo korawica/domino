@@ -39,7 +39,11 @@ class DagFactory:
     )
 
     def validate_path(self, path: Path | str) -> Path:
-        """Validate the path parameter that passing for generating Airflow DAG."""
+        """Validate the path parameter that passing for generating Airflow DAG.
+
+        Args:
+            path (Path | str): Path to the DAG template folder.
+        """
         path = path if isinstance(path, Path) else Path(path)
 
         # Path of DAG template should be directory

@@ -47,10 +47,11 @@ class Templater(BaseModel):
     # The base template fields that will fix the fields that need to render Jinja
     #   template.
     base_template_fields: ClassVar[tuple[str, ...]] = ()
+    base_template_fields_ext: ClassVar[dict[str, tuple[str, ...]]] = {}
 
     # The dynamic template field class variables set
     template_fields: ClassVar[tuple[str, ...]] = ()
-    template_fields_ext: ClassVar[dict[str, str]] = {}
+    template_fields_ext: ClassVar[dict[str, tuple[str, ...]]] = {}
 
     @classmethod
     def render_field(
@@ -74,9 +75,11 @@ class Templater(BaseModel):
         Returns:
             Any: The rendered data.
         """
-        data: Any = renderer.render_partial(
+        data: Any = renderer.render(
             data,
-            template_ext=cls.template_fields_ext.get(name),
+            template_ext=(
+                cls.base_template_fields_ext | cls.template_fields_ext
+            ).get(name),
         )
 
         # NOTE: Check the render result cannot resolve the Global variable
