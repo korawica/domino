@@ -46,9 +46,6 @@ class DagFactory:
         if not path.is_dir():
             path = path.parent
 
-        print(path)
-        print(get_dags_path())
-
         if (
             (dags_path := get_dags_path())
             and path != dags_path

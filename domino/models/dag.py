@@ -1,16 +1,31 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
 from airflow import DAG
-from pydantic import BaseModel, Field
+from pydantic import Field
 
 from .label import Label
 from .task_group import TaskOrGroup
+from .templater import Templater
 
 
-class Dag(BaseModel):
+class Dag(Templater):
     """DAG Model."""
+
+    base_template_fields: ClassVar[tuple[str, ...]] = (
+        "owners",
+        "tags",
+        "labels",
+        "schedule",
+        "start_date",
+        "end_date",
+        "catchup",
+        "max_active_tasks",
+        "max_active_runs",
+        "max_consecutive_failed_dag_runs",
+        "dagrun_timeout_sec",
+    )
 
     id: str = Field(
         ...,

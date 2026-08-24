@@ -6,6 +6,7 @@ import shutil
 from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
+from textwrap import dedent
 from threading import Lock
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
@@ -47,6 +48,25 @@ def dags_path(test_path: Path) -> Iterator[Path]:
     yield path
 
     shutil.rmtree(path, ignore_errors=True)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def setup_global_variables(dags_path: Path) -> Iterator[None]:
+    with (dags_path / "variables.yml").open("w") as f:
+        f.write(
+            dedent(
+                """
+                id: global_variable_on_dags
+                type: variable
+                stages:
+                  dev:
+                    global_var_key: global_var_value
+                  prod:
+                    global_var_key: global_var_value
+                """
+            )
+        )
+    yield
 
 
 @pytest.fixture(scope="function")

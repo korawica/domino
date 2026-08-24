@@ -3,6 +3,7 @@ from __future__ import annotations
 from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar
 
+from airflow.sdk import TriggerRule
 from pydantic import Field
 
 from .builder import BaseAirflowTaskOrGroupBuilder
@@ -15,7 +16,7 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
     """Base Operator Task Model."""
 
     base_template_fields: ClassVar[tuple[str, ...]] = (
-        "inputs",
+        "desc",
         "params",
         "inlets",
         "outlets",
@@ -30,16 +31,13 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
         default_factory=list,
         description="A list of upstream task IDs for the task.",
     )
-    trigger_rule: str = Field(
-        default="all_success",
+    trigger_rule: TriggerRule = Field(
+        default=TriggerRule.ALL_SUCCESS,
         description="The trigger rule for the task.",
     )
-
-    inputs: dict[str, Any] = Field(
-        default_factory=dict, description="Input parameters for the task."
-    )
     params: dict[str, Any] = Field(
-        default_factory=dict, description="Parameters for the task."
+        default_factory=dict,
+        description="Parameters for the task.",
     )
 
     inlets: list[dict[str, Any]] = Field(
@@ -55,12 +53,14 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
         set_kws = self.model_dump(
             by_alias=True,
             exclude_unset=True,
+            exclude={
+                "type",
+            },
         )
 
-        kws: dict[str, Any] = {"task_id": self.id}
+        set_kws["task_id"] = set_kws.pop("id")
         _ = build_context
-
-        return set_kws | kws
+        return set_kws
 
 
 class BaseSensorTask(BaseOperatorTask, ABC):
