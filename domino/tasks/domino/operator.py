@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
 from airflow import DAG
 from airflow.sdk import TaskGroup
@@ -34,6 +34,10 @@ class OperatorTask(BaseOperatorTask):
         ...,
         description="The Airflow operator name to be executed in Operator task.",
     )
+    inputs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The input parameters for the Airflow operator.",
+    )
 
     def build(
         self,
@@ -54,5 +58,5 @@ class OperatorTask(BaseOperatorTask):
             dag=dag,
             task_group=task_group,
             **self.inputs,
-            **self.task_kwargs(build_context=build_context),
+            **self.base_op_kwargs(build_context=build_context),
         )

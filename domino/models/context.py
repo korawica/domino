@@ -36,6 +36,7 @@ class BuildContext(TypedDict):
     # task generator context
     tasks: dict[str, TaskContext]
     tasks_lock: NotRequired[Lock]
+    dataset_hook: NotRequired[Callable[..., Any]]
 
     # assets context
     task_objects: dict[str, type[BaseAirflowTaskOrGroupBuilder]]
