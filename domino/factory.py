@@ -10,7 +10,7 @@ from pydantic import ValidationError
 from .const import VAR_DOMINO_UNITTEST_MODE
 from .loader import DagLoader
 from .models.dag import Dag
-from .renderer import JinjaRender
+from .renderer import JinjaRenderer
 from .utils import get_bool_env, get_dags_path
 
 if TYPE_CHECKING:
@@ -103,7 +103,7 @@ class DagFactory:
         """Return the DAG model from the DAG template."""
         dag: Dag | None = self.conf
         if dag is None:
-            jinja_renderer = JinjaRender()
+            jinja_renderer = JinjaRenderer()
             data: dict[str, Any] = self.loader.read_dag()
             name: str = data["id"]
             try:

@@ -17,6 +17,9 @@ from dotenv import load_dotenv
 if TYPE_CHECKING:
     from airflow.sdk.definitions.dag import DAG
 
+logger = logging.getLogger("domino")
+logger.propagate = False
+
 # make_dotenv(Path(__file__).parent.parent)
 load_dotenv(Path(__file__).parent.parent / ".env")
 
@@ -87,7 +90,7 @@ def dag(test_path: Path) -> DAG:
 @pytest.fixture(autouse=True)
 def setup_airflow_dags_path(dags_path: Path) -> Iterator[None]:
     with patch(
-        "domino.factory.get_dags_path",
+        "domino.utils.airflow_utils.get_dags_path",
         return_value=dags_path,
     ):
         yield

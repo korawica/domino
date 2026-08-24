@@ -8,7 +8,7 @@ from pydantic import BaseModel, ValidationInfo
 from pydantic.functional_validators import model_validator
 from pydantic_core import PydanticUndefined
 
-from ..renderer import JinjaRender
+from ..renderer import JinjaRenderer
 
 logger = logging.getLogger("domino")
 
@@ -58,7 +58,7 @@ class Templater(BaseModel):
         cls,
         name: str,
         data: Any,
-        renderer: JinjaRender,
+        renderer: JinjaRenderer,
         *,
         is_glob_from_default: bool = False,
     ) -> Any:
@@ -67,7 +67,7 @@ class Templater(BaseModel):
         Args:
             name (str): The name of the template field.
             data (Any): The data to be rendered.
-            renderer (JinjaRender): The Jinja renderer instance.
+            renderer (JinjaRenderer): The Jinja renderer instance.
             is_glob_from_default (bool): Flag for allow to check the value of global
                 variable that set from default need to set before create DAG
                 object.
@@ -130,7 +130,7 @@ class Templater(BaseModel):
             and info.context
             and "jinja_renderer" in info.context
         ):
-            renderer: JinjaRender = info.context["jinja_renderer"]
+            renderer: JinjaRenderer = info.context["jinja_renderer"]
             for field_name in tuple(
                 # Keep order of tuple of template fields
                 dict.fromkeys(cls.base_template_fields + cls.template_fields)

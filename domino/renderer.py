@@ -68,6 +68,13 @@ class PreserveUndefined(DebugUndefined):
 class JinjaRenderer:
     """Jinja renderer object that using for rendering Jinja template fields in
     the model.
+
+        This renderer object focus on the partial rendering of the Jinja template fields.
+    It will try to render with the current context and if it failed, it will
+    return the original string without raising an error.
+    This is useful for rendering the Jinja template fields in the model that may
+    contain undefined variables or filters that are not available in the current
+    context.
     """
 
     __slots__ = (
@@ -86,6 +93,7 @@ class JinjaRenderer:
         self.user_defined_filters: dict[str, Any] = user_defined_filters or {}
         self._env: Environment | None = None
         self._env_str: Environment | None = None
+        self.post_init()
 
     def post_init(self) -> None:
         """Post-initialization method to set up the Jinja2 environment."""
