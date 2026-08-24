@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import logging
+from pathlib import Path
 from re import DOTALL, VERBOSE, Pattern, compile
 from typing import Any
 
 from jinja2 import DebugUndefined, Environment, Undefined, UndefinedError
 from jinja2.exceptions import TemplateAssertionError
+from jinja2.loaders import FileSystemLoader
 from jinja2.nativetypes import NativeEnvironment
 
 logger = logging.getLogger("domino")
@@ -95,13 +97,16 @@ class JinjaRenderer:
     __slots__ = (
         "user_defined_macros",
         "user_defined_filters",
+        "template_searchpath",
         "_env",
+        "_env_str",
     )
 
     def __init__(
         self,
         user_defined_macros: dict[str, Any] | None = None,
         user_defined_filters: dict[str, Any] | None = None,
+        template_searchpath: tuple[str | Path, ...] | None = None,
     ) -> None:
         """Initialize the Jinja renderer object.
 
@@ -110,10 +115,19 @@ class JinjaRenderer:
                 A dictionary of user-defined macros to be added to the Jinja environment.
             user_defined_filters (dict[str, Any], optional):
                 A dictionary of user-defined filters to be added to the Jinja environment.
+            template_searchpath (tuple[str | Path, ...], optional):
+                A tuple of paths to search for template files.
+                Required when using template file loading via ``template_ext``.
         """
         self.user_defined_macros: dict[str, Any] = user_defined_macros or {}
         self.user_defined_filters: dict[str, Any] = user_defined_filters or {}
+        self.template_searchpath: list[str] | None = (
+            [str(p) for p in template_searchpath]
+            if template_searchpath is not None
+            else None
+        )
         self._env: Environment | None = None
+        self._env_str: Environment | None = None
         self.post_init()
 
     def post_init(self) -> None:
@@ -129,15 +143,34 @@ class JinjaRenderer:
         """Return a Jinja2 Environment object for rendering templates."""
         env: Environment | None = self._env
         if env is None:
+            loader: FileSystemLoader | None = (
+                FileSystemLoader(self.template_searchpath)
+                if self.template_searchpath is not None
+                else None
+            )
             env: Environment = NativeEnvironment(
+                loader=loader,
                 undefined=PreserveUndefined,
                 extensions=["jinja2.ext.do"],
                 autoescape=False,
                 trim_blocks=False,
                 lstrip_blocks=False,
+                cache_size=0,
             )
             self._env = env
         return env
+
+    @property
+    def env_str(self) -> Environment:
+        """Return a Jinja2 Environment object for rendering templates from strings."""
+        env_str: Environment | None = self._env_str
+        if env_str is None:
+            env_str: Environment = Environment(
+                undefined=PreserveUndefined,
+                autoescape=False,
+            )
+            self._env_str = env_str
+        return env_str
 
     def render(
         self,
@@ -164,24 +197,37 @@ class JinjaRenderer:
 
         if isinstance(value, (list, dict, set)):
             oid = id(value)
+
             if _seen is None:
                 _seen = set()
             elif oid in _seen:
                 return value  # cycle guard
+
             _seen.add(oid)
+
             try:
                 if isinstance(value, dict):
                     return {
-                        k: self._walk(v, _seen=_seen) for k, v in value.items()
+                        k: self._walk(v, _seen=_seen, template_ext=template_ext)
+                        for k, v in value.items()
                     }
                 if isinstance(value, list):
-                    return [self._walk(e, _seen=_seen) for e in value]
-                return {self._walk(e, _seen=_seen) for e in value}
+                    return [
+                        self._walk(e, _seen=_seen, template_ext=template_ext)
+                        for e in value
+                    ]
+                return {
+                    self._walk(e, _seen=_seen, template_ext=template_ext)
+                    for e in value
+                }
             finally:
                 _seen.discard(oid)
 
         if isinstance(value, tuple):
-            items = [self._walk(e, _seen=_seen) for e in value]
+            items = [
+                self._walk(e, _seen=_seen, template_ext=template_ext)
+                for e in value
+            ]
             return (
                 tuple(items)
                 if value.__class__ is tuple
@@ -208,7 +254,10 @@ class JinjaRenderer:
           a unit (all-or-nothing) so ``NativeEnvironment`` can
           preserve native Python types.
         """
-        _ = template_ext
+        if template_ext and value.endswith(template_ext):
+            logger.debug("👀 Render Template File: %s", value)
+            return self.env.get_template(value).render()
+
         if not is_jinja(value, pure=False):
             return value
 
@@ -229,12 +278,8 @@ class JinjaRenderer:
                 #   emitted by ``{% raw %}...{% endraw %}``) parse as
                 #   unhashable literals and raise ``TypeError``.
                 #   Fall back to regular Environment for string output.
-                env_str = Environment(
-                    undefined=PreserveUndefined,
-                    autoescape=False,
-                )
                 try:
-                    return env_str.from_string(source).render()
+                    return self.env_str.from_string(source).render()
                 except (TemplateAssertionError, UndefinedError):
                     return source
             return source if isinstance(_rendered, Undefined) else _rendered

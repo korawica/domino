@@ -19,7 +19,7 @@ def test_group_model_validate():
             "tasks": [
                 {
                     "id": "task1",
-                    "type": "task",
+                    "type": "empty",
                 },
                 {
                     "id": "nested_group1",
@@ -27,7 +27,7 @@ def test_group_model_validate():
                     "tasks": [
                         {
                             "id": "task2",
-                            "type": "task",
+                            "type": "empty",
                         }
                     ],
                 },
@@ -38,9 +38,9 @@ def test_group_model_validate():
     assert group.type == "group"
     assert len(group.tasks) == 2
     assert group.tasks[0].id == "task1"
-    assert group.tasks[0].type == "task"
+    assert group.tasks[0].type == "empty"
     assert group.tasks[1].id == "nested_group1"
     assert group.tasks[1].type == "group"
     assert len(group.tasks[1].tasks) == 1
     assert group.tasks[1].tasks[0].id == "task2"
-    assert group.tasks[1].tasks[0].type == "task"
+    assert group.tasks[1].tasks[0].type == "empty"
