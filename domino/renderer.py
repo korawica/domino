@@ -51,17 +51,32 @@ def is_jinja(s: str, pure: bool = True) -> bool:
 
 
 class PreserveUndefined(DebugUndefined):
-    """An ``Undefined`` that raises on ``__str__`` instead of re-emitting.
+    """An ``Undefined`` that raises on ``__str__``, ``__bool__``, or ``__iter__``
+    instead of re-emitting.
 
         `jinja2.DebugUndefined` re-emits ``{{ var }}`` on ``__str__``,
     which breaks filter pipelines — ``{{ x | upper }}`` becomes
     ``{{ X }}``. Raising instead lets `JinjaRenderer` catch the error and return
     the source text unchanged.
+
+        Also raises on ``__bool__`` so that undefined variables in
+    ``{% if condition %}`` blocks cause the whole block to be preserved
+    instead of evaluating the else branch.
+
+        Raises on ``__iter__`` so that undefined variables in
+    ``{% for item in items %}`` blocks cause the whole block to be preserved
+    instead of rendering nothing.
     """
 
     __slots__ = ()
 
     def __str__(self) -> str:
+        self._fail_with_undefined_error()
+
+    def __bool__(self) -> bool:
+        self._fail_with_undefined_error()
+
+    def __iter__(self):
         self._fail_with_undefined_error()
 
 
@@ -81,7 +96,6 @@ class JinjaRenderer:
         "user_defined_macros",
         "user_defined_filters",
         "_env",
-        "_env_str",
     )
 
     def __init__(
@@ -89,44 +103,31 @@ class JinjaRenderer:
         user_defined_macros: dict[str, Any] | None = None,
         user_defined_filters: dict[str, Any] | None = None,
     ) -> None:
+        """Initialize the Jinja renderer object.
+
+        Args:
+            user_defined_macros (dict[str, Any], optional):
+                A dictionary of user-defined macros to be added to the Jinja environment.
+            user_defined_filters (dict[str, Any], optional):
+                A dictionary of user-defined filters to be added to the Jinja environment.
+        """
         self.user_defined_macros: dict[str, Any] = user_defined_macros or {}
         self.user_defined_filters: dict[str, Any] = user_defined_filters or {}
         self._env: Environment | None = None
-        self._env_str: Environment | None = None
         self.post_init()
 
     def post_init(self) -> None:
         """Post-initialization method to set up the Jinja2 environment."""
-        env = self.env
-        env_str = self.env_str
         if self.user_defined_macros:
-            env.globals.update(self.user_defined_macros)
-            env_str.globals.update(self.user_defined_macros)
+            self.env.globals.update(self.user_defined_macros)
 
         if self.user_defined_filters:
-            env.filters.update(self.user_defined_filters)
-            env_str.filters.update(self.user_defined_filters)
+            self.env.filters.update(self.user_defined_filters)
 
     @property
     def env(self) -> Environment:
         """Return a Jinja2 Environment object for rendering templates."""
         env: Environment | None = self._env
-        if env is None:
-            env: Environment = NativeEnvironment(
-                undefined=DebugUndefined,
-                extensions=["jinja2.ext.do"],
-                autoescape=False,
-                trim_blocks=False,
-                lstrip_blocks=False,
-            )
-            self._env = env
-            return env
-        return env
-
-    @property
-    def env_str(self) -> Environment:
-        """Return a Jinja2 Environment object for rendering templates as strings."""
-        env: Environment | None = self._env_str
         if env is None:
             env: Environment = NativeEnvironment(
                 undefined=PreserveUndefined,
@@ -135,8 +136,7 @@ class JinjaRenderer:
                 trim_blocks=False,
                 lstrip_blocks=False,
             )
-            self._env_str = env
-            return env
+            self._env = env
         return env
 
     def render(
@@ -228,9 +228,13 @@ class JinjaRenderer:
                 #   ``ast.literal_eval``; some strings (e.g. ``{{ 1 }}``
                 #   emitted by ``{% raw %}...{% endraw %}``) parse as
                 #   unhashable literals and raise ``TypeError``.
-                #   Fall back to a plain string render.
+                #   Fall back to regular Environment for string output.
+                env_str = Environment(
+                    undefined=PreserveUndefined,
+                    autoescape=False,
+                )
                 try:
-                    return self.env_str.from_string(source).render()
+                    return env_str.from_string(source).render()
                 except (TemplateAssertionError, UndefinedError):
                     return source
             return source if isinstance(_rendered, Undefined) else _rendered
