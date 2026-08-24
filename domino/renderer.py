@@ -104,6 +104,7 @@ class JinjaRenderer:
 
     def __init__(
         self,
+        *,
         user_defined_macros: dict[str, Any] | None = None,
         user_defined_filters: dict[str, Any] | None = None,
         template_searchpath: tuple[str | Path, ...] | None = None,

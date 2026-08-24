@@ -1,13 +1,16 @@
 from __future__ import annotations
 
-from typing import Any, ClassVar, Literal
+from typing import TYPE_CHECKING, Any, ClassVar, Literal
 
 from airflow import DAG
 from pydantic import Field
 
-from .label import Label
+from .context import BuildContext
 from .task_group import TaskOrGroup
 from .templater import Templater
+
+if TYPE_CHECKING:
+    from .label import Label
 
 
 class Dag(Templater):
@@ -99,14 +102,18 @@ class Dag(Templater):
 
     def build(
         self,
+        build_context: BuildContext,
     ) -> DAG:
         """Build the Airflow DAG from the DAG model."""
+        label: Label = build_context["label"]
         dag = DAG(
+            tags=set(self.tags) + label.make_tags(),
             **self.dag_kwargs(
                 exclude={
                     "type",
                     "tasks",
                     "labels",
+                    "tags",
                 },
             ),
         )

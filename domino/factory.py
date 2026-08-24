@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -9,7 +10,9 @@ from pydantic import ValidationError
 
 from .const import VAR_DOMINO_UNITTEST_MODE
 from .loader import DagLoader
+from .models.context import BuildContext
 from .models.dag import Dag
+from .models.label import Label
 from .renderer import JinjaRenderer
 from .utils import get_bool_env, get_dags_path
 
@@ -36,6 +39,9 @@ class DagFactory:
         "task_objects",
         "airflow_operators",
         "on_task_callbacks",
+        "user_defined_macros",
+        "user_defined_filters",
+        "_jinja_renderer",
     )
 
     def validate_path(self, path: Path | str) -> Path:
@@ -74,6 +80,9 @@ class DagFactory:
         python_callables: dict[str, Callable[..., None]] | None = None,
         task_objects: dict[str, BaseTask] | None = None,
         airflow_operators: dict[str, type[BaseOperator]] | None = None,
+        # Jinja environment
+        user_defined_macros: dict[str, Callable[..., Any]] | None = None,
+        user_defined_filters: dict[str, Callable[..., Any]] | None = None,
     ) -> None:
         """Initialize the DAG Generator.
 
@@ -95,15 +104,19 @@ class DagFactory:
         self.task_objects = task_objects or {}
         self.airflow_operators = airflow_operators or {}
 
+        self.user_defined_macros = user_defined_macros or {}
+        self.user_defined_filters = user_defined_filters or {}
+
         self.loader = DagLoader(self.path)
         self.conf: Dag | None = None
+
+        self._jinja_renderer: JinjaRenderer | None = None
 
     @property
     def dag(self) -> Dag:
         """Return the DAG model from the DAG template."""
         dag: Dag | None = self.conf
         if dag is None:
-            jinja_renderer = JinjaRenderer()
             data: dict[str, Any] = self.loader.read_dag()
             name: str = data["id"]
             try:
@@ -111,7 +124,7 @@ class DagFactory:
                     obj=data,
                     context={
                         "task_callbacks": self.on_task_callbacks,
-                        "jinja_renderer": jinja_renderer,
+                        "jinja_renderer": self.jinja_renderer,
                     },
                 )
                 self.conf = dag
@@ -123,9 +136,31 @@ class DagFactory:
                 raise
         return dag
 
+    @property
+    def jinja_renderer(self) -> JinjaRenderer:
+        """Return the JinjaRenderer object from the DAG model."""
+        jinja_renderer: JinjaRenderer | None = self._jinja_renderer
+        if jinja_renderer is None:
+            jinja_renderer: JinjaRenderer = JinjaRenderer(
+                user_defined_macros=self.user_defined_macros,
+                user_defined_filters=self.user_defined_filters,
+            )
+            self._jinja_renderer = jinja_renderer
+        return jinja_renderer
+
     def build(self) -> DAG:
         """Build Airflow DAG object from the DAG model."""
-        return self.dag.build()
+        build_context: BuildContext = {
+            "path": self.path,
+            "tasks": {},
+            "tasks_lock": threading.Lock(),
+            "label": Label(),
+            "jinja_renderer": self.jinja_renderer,
+            "task_objects": self.task_objects,
+            "airflow_operators": self.airflow_operators,
+            "python_callables": self.python_callables,
+        }
+        return self.dag.build(build_context=build_context)
 
     def build_airflow_dag_to_globals(self, gb: dict[str, Any]) -> None:
         """Build Airflow DAG to the globals.

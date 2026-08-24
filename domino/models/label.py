@@ -23,9 +23,9 @@ class Label(BaseModel):
         description="The priority of the task.",
     )
 
-    def make_tags(self) -> list[str]:
+    def make_tags(self) -> set[str]:
         """Make tags from labels."""
-        return [
+        return {
             f"{key}:{value}"
             for key, value in self.model_dump(exclude_none=True).items()
-        ]
+        }
