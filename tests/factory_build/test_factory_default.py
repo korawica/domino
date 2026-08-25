@@ -42,4 +42,13 @@ def test_dag_factory_default_build(mock_dag_path: Path):
     assert dag.dag_id == "example"
     assert dag.start_date is None
     assert dag.end_date is None
-    assert dag.owner == ""
+    assert dag.owner == "airflow"
+
+    assert len(dag.tasks) == 2
+    assert dag.tasks[0].dag_id == "example"
+    assert dag.tasks[0].task_id == "start"
+
+    assert len(dag.tasks) == 2
+    assert dag.tasks[1].dag_id == "example"
+    assert dag.tasks[1].task_id == "end"
+    assert dag.tasks[1].upstream_task_ids == ["start"]

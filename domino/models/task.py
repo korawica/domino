@@ -167,6 +167,10 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
         Args:
             build_context (BuildContext): A build context that was passed from
                 the factory.
+
+        Returns:
+            dict[str, Any]: A mapping of Airflow's BaseOperator keyword
+                arguments.
         """
         set_kws = self.model_dump(
             by_alias=True,
@@ -174,6 +178,7 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
             exclude={
                 "type",
                 "desc",
+                "upstreams",
             },
         )
 

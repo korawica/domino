@@ -20,6 +20,7 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
                 id: example
                 type: dag
                 docs: docs.md
+                owners: ["whoami@email.com"]
                 tasks:
                   - id: start
                     type: empty
@@ -54,4 +55,4 @@ def test_dag_factory_build(mock_dag_path: Path):
     assert dag.dag_id == "example"
     assert dag.start_date is None
     assert dag.end_date is None
-    assert dag.owner == ""
+    assert dag.owner == "whoami@email.com"

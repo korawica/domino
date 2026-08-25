@@ -107,8 +107,9 @@ class JinjaRenderer:
         *,
         user_defined_macros: dict[str, Any] | None = None,
         user_defined_filters: dict[str, Any] | None = None,
-        template_searchpath: tuple[str | Path, ...]
-        | list[str | Path]
+        template_searchpath: list[str | Path]
+        | list[str]
+        | list[Path]
         | None = None,
     ) -> None:
         """Initialize the Jinja renderer object.

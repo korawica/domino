@@ -4,6 +4,8 @@ from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
+from airflow.sdk.bases.operator import BaseOperator
+from airflow.sdk.definitions.taskgroup import TaskGroup
 from pydantic import Field
 
 from .__types import BaseOperatorOrTaskGroup
@@ -12,9 +14,7 @@ from .templater import Templater
 if TYPE_CHECKING:
     from threading import Lock
 
-    from airflow.sdk.bases.operator import BaseOperator
     from airflow.sdk.definitions.dag import DAG
-    from airflow.sdk.definitions.taskgroup import TaskGroup
 
     from .context import BuildContext, TaskContext
 
@@ -121,7 +121,10 @@ class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
 
         tasks: dict[str, TaskContext] | None = build_context.get("tasks")
         if tasks is None:
+            print("tasks is None, skip mapping upstream and teardown.")
             return task_airflow
+
+        print("tasks is not none")
 
         # Support for duplicate ID for mapping upstream.
         teardown: str | None = None

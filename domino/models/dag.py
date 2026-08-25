@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
@@ -9,7 +10,8 @@ from pendulum import DateTime, parse
 from pydantic import ConfigDict, Field
 from pydantic.functional_validators import field_validator
 
-from ..utils import int2seconds
+from ..const import MAX_THREADS_BUILD_TASK
+from ..utils import int2seconds, set_upstream_and_teardown
 from .label import Label
 from .task_group import TaskOrGroup
 from .templater import Templater
@@ -123,6 +125,7 @@ class Dag(Templater):
     )
     @classmethod
     def validate_datetime(cls, data: Any) -> DateTime | None:
+        """Validate datetime value type fields."""
         if isinstance(data, str):
             # handle null or none string to return None
             if data.lower() in ("null", "none"):
@@ -138,9 +141,19 @@ class Dag(Templater):
     def dag_kwargs(self, exclude: set[str] | None = None) -> dict[str, Any]:
         """Return the DAG keyword arguments from the DAG model that will use
         to passing to Airflow DAG object.
+
+        Args:
+            exclude (set[str] | None): A set of strings specifying which DAG
+                attributes to exclude.
+
+        Returns:
+            dict[str, Any]: A dictionary of keyword arguments for the Airflow
+                DAG object.
         """
         kws = self.model_dump(
             exclude={
+                "id",
+                "desc",
                 "docs",
                 "type",
                 "tasks",
@@ -151,9 +164,6 @@ class Dag(Templater):
             | (exclude or set()),
             exclude_unset=True,
         )
-        kws["dag_id"] = kws.pop("id")
-        kws["doc_md"] = kws.pop("docs", None)
-        kws["description"] = kws.pop("desc", None)
         kws["dagrun_timeout"] = int2seconds(kws.pop("dagrun_timeout_sec", None))
         kws["owner_links"] = {owner: owner for owner in kws.pop("owners", [])}
         return kws
@@ -162,10 +172,60 @@ class Dag(Templater):
         self,
         build_context: BuildContext,
     ) -> DAG:
-        """Build the Airflow DAG from the DAG model."""
+        """Build the Airflow DAG from the DAG model.
+
+        Args:
+            build_context (BuildContext): The context for building the DAG.
+        """
         label: Label = build_context["label"]
+
+        # Start create Airflow's DAG instance
         dag = DAG(
+            dag_id=self.id,
+            doc_md=self.docs,
+            description=self.desc,
             tags=set(self.tags) | label.make_tags(),
+            default_args=(
+                {"owner": ",".join(self.owners)} if self.owners else {}
+            ),
             **self.dag_kwargs(),
         )
+
+        # Build DAG Tasks mapping before set its upstream and store
+        #   them to the building context with key, `tasks`.
+        # Move to use thread pool to speed up the building process.
+        # Use fail-fast strategy to stop immediately on first error.
+        if MAX_THREADS_BUILD_TASK > 1:  # pragma: no cov
+            with ThreadPoolExecutor(MAX_THREADS_BUILD_TASK) as executor:
+                futures: list[Future] = [
+                    executor.submit(
+                        task.backend_build,
+                        dag=dag,
+                        build_context=build_context,
+                        task_group=None,
+                    )
+                    for task in self.tasks
+                ]
+                try:
+                    for future in as_completed(futures):
+                        future.result()
+                except Exception:
+                    # ⚠️ WARNING: Cancel remaining futures on first error
+                    for future in futures:
+                        future.cancel()
+                    raise
+        else:
+            # We need to keep orders of tasks building when ``MAX_THREADS_BUILD_TASK``
+            #   set to 1 because some task may depend on the previous task that
+            #   build before.
+            for task in self.tasks:
+                task.backend_build(dag=dag, build_context=build_context)
+
+        # Set upstream and teardown for each task that set in the building context.
+        set_upstream_and_teardown(tasks=build_context.get("tasks", {}))
+
+        # Set property for DAG object.
+        dag.is_dag_auto_generated = True
+        dag.is_domino = True
+
         return dag
