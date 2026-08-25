@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
 from typing import TYPE_CHECKING
 
 from pydantic import Field
 
-from .__types import OperatorOrTaskGroup
+from .__types import BaseOperatorOrTaskGroup
 from .templater import Templater
 
 if TYPE_CHECKING:
+    from threading import Lock
+
     from airflow.sdk.bases.operator import BaseOperator
     from airflow.sdk.definitions.dag import DAG
     from airflow.sdk.definitions.taskgroup import TaskGroup
@@ -15,18 +19,28 @@ if TYPE_CHECKING:
     from .context import BuildContext, TaskContext
 
 
-class BaseBuilder(Templater, ABC):
-    """Base Builder Model."""
+class DominoBuilderMixin(ABC):
+    @abstractmethod
+    def build(self, build_context: BuildContext) -> None:
+        """Object building method for any builder object.
 
-    id: str = Field(..., description="A unique identifier")
+        Args:
+            build_context (BuildContext):
+                A Context data that was created from the DAG Generator object.
+        """
+        raise NotImplementedError(
+            "This Builder object should implement build method."
+        )
 
+
+class AirflowBuilderMixin(ABC):
     @abstractmethod
     def build(
         self,
         dag: DAG,
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
-    ) -> OperatorOrTaskGroup:
+    ) -> BaseOperatorOrTaskGroup:
         """Tool building method for build any Airflow task object. This method
         can return Operator or TaskGroup object.
 
@@ -38,7 +52,7 @@ class BaseBuilder(Templater, ABC):
                 if this task build under the task group.
 
         Returns:
-            OperatorOrTaskGroup: This method can return depend on building
+            BaseOperatorOrTaskGroup: This method can return depend on building
                 logic that already pass the DAG instance from the parent.
         """
         raise NotImplementedError(
@@ -46,16 +60,17 @@ class BaseBuilder(Templater, ABC):
         )
 
 
-class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
-    """Core Airflow Task or TaskGroup Builder Model."""
+class BaseAirflowBuilder(Templater, AirflowBuilderMixin, ABC):
+    """Base Builder Model."""
 
+
+class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
+    """Base Airflow Task or TaskGroup Builder Model."""
+
+    id: str = Field(..., description="A unique identifier")
     desc: str | None = Field(
         default=None,
-        description=(
-            "A task or task group description. This value will pass "
-            "to the ``doc`` parameter of the Airflow Operator or Airflow "
-            "TaskGroup."
-        ),
+        description="A task or task group description.",
     )
     upstream: list[str] = Field(
         default_factory=list,
@@ -67,7 +82,7 @@ class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
         dag: DAG,
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
-    ) -> OperatorOrTaskGroup:
+    ) -> BaseOperatorOrTaskGroup:
         """Backend Building the Airflow Operator or TaskGroup object.
 
         This method will update tasks building context value before returning
@@ -87,16 +102,11 @@ class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
                 if this task build under the task group.
 
         Returns:
-            OperatorOrTaskGroup: An Airflow Operator or TaskGroup instance.
-                - Operator: Be a basic task that should implement 1-1 with Airflow
-                            Operator.
-                - TaskGroup: Be note that if you implement TaskGroup model, it will
-                             return TaskGroup instance, and you should implement
-                             task dependencies by yourself inside the TaskGroup model.
+            BaseOperatorOrTaskGroup: An Airflow Operator or TaskGroup instance.
         """
 
         # Start call build the Airflow object from the `build` method.
-        task_airflow: OperatorOrTaskGroup = self.build(
+        task_airflow: BaseOperatorOrTaskGroup = self.build(
             dag=dag,
             task_group=task_group,
             build_context=build_context,
@@ -128,7 +138,7 @@ class CoreAirflowTaskOrGroupBuilder(BaseBuilder, ABC):
         #   tasks in parallel. This is important for thread safety when multiple
         #   threads are building tasks and accessing the shared `tasks`
         #   dictionary.
-        lock_cm = (
+        lock_cm: Lock | nullcontext = (
             build_context["tasks_lock"]
             if build_context and "tasks_lock" in build_context
             else nullcontext()

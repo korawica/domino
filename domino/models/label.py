@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -20,3 +22,10 @@ class Label(BaseModel):
         default=None,
         description="The priority of the task.",
     )
+
+    def make_tags(self) -> set[str]:
+        """Make tags from labels."""
+        return {
+            f"{key}:{value}"
+            for key, value in self.model_dump(exclude_none=True).items()
+        }

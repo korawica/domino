@@ -1,49 +1,16 @@
-from typing import Annotated, Any, Literal, Union
+from typing import Annotated, Union
 
 from pydantic import Field
 
-from domino.models.builder import BaseBuilder
-
-from .standard import EmptyTask
-
-
-class Group(BaseBuilder):
-    """Group Model."""
-
-    id: str = Field(..., description="A unique identifier for the task group.")
-    type: Literal["group"] = Field(
-        default="group", description="The type of the task group."
-    )
-    tasks: list[TaskOrGroup] = Field(
-        description="A list of Task or Group objects that belong to this group.",
-    )
-
-    def build(
-        self,
-        dag: Any,
-        build_context: Any,
-        task_group: Any | None = None,
-    ) -> Any: ...
-
+from .standard import EmptyTask, PythonTask
 
 Task = Annotated[
-    Union[EmptyTask,],
-    Field(
-        description="A tasks or a group of tasks.",
-    ),
-]
-
-
-TaskOrGroup = Annotated[
     Union[
-        Group,
-        Task,
+        EmptyTask,
+        PythonTask,
     ],
     Field(
         discriminator="type",
-        description=(
-            "A union of tasks and Group objects, allowing for polymorphic "
-            "behavior based on the 'type' field."
-        ),
+        description="A tasks or a group of tasks.",
     ),
 ]

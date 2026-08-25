@@ -1,12 +1,15 @@
+from __future__ import annotations
+
 import logging
 import re
+from collections.abc import Callable
 from typing import Any, ClassVar, Final
 
 from pydantic import BaseModel, ValidationInfo
 from pydantic.functional_validators import model_validator
 from pydantic_core import PydanticUndefined
 
-from ..renderer import JinjaRender
+from ..renderer import JinjaRenderer
 
 logger = logging.getLogger("domino")
 
@@ -35,39 +38,60 @@ GLOB_VAR_PATTERN: Final[re.Pattern[str]] = re.compile(
 
 
 class Templater(BaseModel):
-    """Templater Model."""
+    """Templater model.
 
+    This model is a base model that will be used for any model that need to render
+    Jinja template fields. It will provide a method to render the template fields
+    using the provided Jinja renderer.
+    """
+
+    # The base template fields that will fix the fields that need to render Jinja
+    #   template.
     base_template_fields: ClassVar[tuple[str, ...]] = ()
+    base_template_fields_ext: ClassVar[dict[str, tuple[str, ...]]] = {}
 
+    # The dynamic template field class variables set
     template_fields: ClassVar[tuple[str, ...]] = ()
-    template_fields_ext: ClassVar[dict[str, str]] = {}
+    template_fields_ext: ClassVar[dict[str, tuple[str, ...]]] = {}
+
+    pre_extract_template_fields: ClassVar[dict[str, Callable[[...], Any]]] = {}
+    post_extract_template_fields: ClassVar[dict[str, Callable[[...], Any]]] = {}
 
     @classmethod
     def render_field(
         cls,
         name: str,
         data: Any,
-        renderer: JinjaRender,
+        renderer: JinjaRenderer,
         *,
-        is_glob_from_default: bool = False,
+        is_pydantic_default: bool = False,
     ) -> Any:
         """Render a template field using the provided Jinja renderer.
 
         Args:
             name (str): The name of the template field.
             data (Any): The data to be rendered.
-            renderer (JinjaRender): The Jinja renderer instance.
-            is_glob_from_default (bool): Flag for allow to check the value of global
-                variable that set from default need to set before create DAG
-                object.
+            renderer (JinjaRenderer): The Jinja renderer instance.
+            is_pydantic_default (bool, default ``False``):
+                Flag for allow to check the value of global variable that set
+                from default need to set before create DAG object.
 
         Returns:
             Any: The rendered data.
         """
-        data: Any = renderer.render(
-            data,
-            template_ext=cls.template_fields_ext.get(name),
+        pre_extract: Callable[[...], Any] = cls.pre_extract_template_fields.get(
+            name, lambda x: x
         )
+        post_extract: Callable[[...], Any] = (
+            cls.post_extract_template_fields.get(name, lambda x: x)
+        )
+        data: Any = renderer.render(
+            pre_extract(data),
+            template_ext=(
+                cls.base_template_fields_ext | cls.template_fields_ext
+            ).get(name),
+        )
+        data = post_extract(data)
 
         # NOTE: Check the render result cannot resolve the Global variable
         #   pattern. This case will raise a ValueError because we expect that
@@ -76,7 +100,7 @@ class Templater(BaseModel):
         if (
             isinstance(data, str)
             and (match := GLOB_VAR_PATTERN.search(data))
-            and is_glob_from_default
+            and is_pydantic_default
         ):
             value: str = match.group("glob")
             logger.warning(
@@ -99,32 +123,31 @@ class Templater(BaseModel):
         data: Any,
         info: ValidationInfo,
     ) -> Any:  # NOSONAR
-        """Pre Template Fields validator to add any extra template fields from
-        `template_fields_ext` class variable.
+        """Render template fields model validator.
 
         Args:
-            data (dict): A model data that will validate.
+            data (Any): A model data that will validate.
             info (ValidationInfo): A validation info object that contains
                 context data.
 
         Returns:
             dict | Any: A model data after render the template fields.
         """
-        # Check the ``jinja_renderer`` object pass to Pydantic context
-        #   before start model validation.
+        # Check the ``jinja_renderer`` object was passed to the Pydantic validation
+        #   information before start render the Jinja template.
         if (
             cls.base_template_fields + cls.template_fields
             and isinstance(data, dict)
             and info.context
             and "jinja_renderer" in info.context
         ):
-            renderer: JinjaRender = info.context["jinja_renderer"]
+            renderer: JinjaRenderer = info.context["jinja_renderer"]
             for field_name in tuple(
                 # Keep order of tuple of template fields
                 dict.fromkeys(cls.base_template_fields + cls.template_fields)
             ):
                 field_value: Any = data.get(field_name)
-                is_glob_from_default: bool = False
+                is_pydantic_default: bool = False
 
                 # Pre-set default to the value that using glob variable
                 #   if the field value is None. This is to avoid rendering issues
@@ -141,7 +164,7 @@ class Templater(BaseModel):
                         field_name,
                     )
                     field_value: str = default
-                    is_glob_from_default: bool = True
+                    is_pydantic_default: bool = True
 
                 # Only render if ``field_value`` is not None or empty
                 if field_value:
@@ -149,6 +172,6 @@ class Templater(BaseModel):
                         field_name,
                         field_value,
                         renderer,
-                        is_glob_from_default=is_glob_from_default,
+                        is_pydantic_default=is_pydantic_default,
                     )
         return data

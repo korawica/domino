@@ -1,16 +1,30 @@
+from __future__ import annotations
+
 from pathlib import Path
 
 from airflow.configuration import conf
 from airflow.sdk import Label
 
-from .models.context import TaskContext
+from domino.models.context import TaskContext
+
+
+def get_airflow_version() -> tuple[int, int, int]:
+    """Get the Airflow version as a tuple of integers.
+
+    Returns:
+        tuple[int, int, int]: The Airflow version.
+    """
+    from airflow import version
+
+    versions = list(map(int, version.split(".")))
+    return versions[0], versions[1], versions[2]
 
 
 def get_dags_path() -> Path | None:
     """Get the Airflow DAGs folder path from the Airflow configuration.
 
     Returns:
-        str: The Airflow DAGs folder path.
+        Path | None: The Airflow DAGs folder path.
     """
     path_str: str | None = conf.get("core", "dags_folder", fallback=None)
     if path_str:

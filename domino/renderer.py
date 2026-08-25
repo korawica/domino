@@ -1,13 +1,17 @@
+from __future__ import annotations
+
 import logging
-from collections.abc import Callable
+from pathlib import Path
 from re import DOTALL, VERBOSE, Pattern, compile
-from typing import Any, Self, cast
+from typing import Any
 
 from jinja2 import DebugUndefined, Environment, Undefined, UndefinedError
 from jinja2.exceptions import TemplateAssertionError
+from jinja2.loaders import FileSystemLoader
 from jinja2.nativetypes import NativeEnvironment
 
-logger = logging.getLogger("domino")
+logger = logging.getLogger("domino.renderer")
+
 
 JINJA_PATTERN: Pattern[str] = compile(
     r"""(
@@ -23,8 +27,9 @@ def is_jinja(s: str, pure: bool = True) -> bool:
     """Check whether a string contains a Jinja tag.
 
     Args:
-        s: The string to inspect.
-        pure: If ``True`` (default), the whole string must consist of
+        s (str): The string to inspect.
+        pure (bool, default ``True``):
+            If ``True`` , the whole string must consist of
             Jinja tags. If ``False``, any string containing at least
             one tag qualifies.
 
@@ -48,12 +53,21 @@ def is_jinja(s: str, pure: bool = True) -> bool:
 
 
 class PreserveUndefined(DebugUndefined):
-    """An ``Undefined`` that raises on ``__str__`` instead of re-emitting.
+    """An ``Undefined`` that raises on ``__str__``, ``__bool__``, or ``__iter__``
+    instead of re-emitting.
 
-    :class:`jinja2.DebugUndefined` re-emits ``{{ var }}`` on ``__str__``,
+        `jinja2.DebugUndefined` re-emits ``{{ var }}`` on ``__str__``,
     which breaks filter pipelines — ``{{ x | upper }}`` becomes
-    ``{{ X }}``. Raising instead lets :class:`JinjaRender` catch the
-    error and return the source text unchanged.
+    ``{{ X }}``. Raising instead lets `JinjaRenderer` catch the error and return
+    the source text unchanged.
+
+        Also raises on ``__bool__`` so that undefined variables in
+    ``{% if condition %}`` blocks cause the whole block to be preserved
+    instead of evaluating the else branch.
+
+        Raises on ``__iter__`` so that undefined variables in
+    ``{% for item in items %}`` blocks cause the whole block to be preserved
+    instead of rendering nothing.
     """
 
     __slots__ = ()
@@ -61,149 +75,130 @@ class PreserveUndefined(DebugUndefined):
     def __str__(self) -> str:
         self._fail_with_undefined_error()
 
+    def __bool__(self) -> bool:
+        self._fail_with_undefined_error()
 
-class JinjaRender:
-    """Two-step Jinja renderer for partial → real rendering flows.
+    def __iter__(self):
+        self._fail_with_undefined_error()
 
-    The renderer builds two :class:`~jinja2.nativetypes.NativeEnvironment`
-    instances (native-type preserving) sharing the same globals and
-    filters:
 
-    - :attr:`env` — strict mode; unresolved names raise.
-    - :attr:`partial_env` — partial mode; unresolved names round-trip
-      as literal text so the output can be rendered again later.
+class JinjaRenderer:
+    """Jinja renderer object that using for rendering Jinja template fields in
+    the model.
 
-    Public API:
-
-    - :meth:`render` — strict render.
-    - :meth:`render_partial` — partial render (mixed inline templates
-      preserve *per expression*: ``"{{ pkg }}-{{ run }}"`` becomes
-      ``"abc-{{ run }}"`` if only ``pkg`` is registered).
-    - :meth:`render_template` / :meth:`render_template_partial` —
-      render only the keys listed in :attr:`template_fields`.
-    - :meth:`set_globals` — inject more globals between steps.
-
-    Examples:
-        >>> r = JinjaRender(user_defined_macros={"pkg_var": "abc"})
-        >>> partial = r.render_partial("{{ pkg_var }}-{{ runtime_var }}")
-        >>> partial
-        'abc-{{ runtime_var }}'
-        >>> _ = r.set_globals({"runtime_var": "xyz"})
-        >>> r.render(partial)
-        'abc-xyz'
-
-        Airflow two-step flow — render your macros first, then let
-        Airflow render its DAG Run context at execution time::
-
-            >>> r = JinjaRender(user_defined_macros={"pkg_var": "abc"})
-            >>> r.render_partial("{{ pkg_var }}/dt={{ logical_date }}")
-            'abc/dt={{ logical_date }}'
-            >>> # step 2: Airflow later renders '{{ logical_date }}'
+        This renderer object focus on the partial rendering of the Jinja template fields.
+    It will try to render with the current context and if it failed, it will
+    return the original string without raising an error.
+    This is useful for rendering the Jinja template fields in the model that may
+    contain undefined variables or filters that are not available in the current
+    context.
     """
 
     __slots__ = (
-        "template_fields",
-        "template_fields_excluded",
-        "user_defined_filters",
         "user_defined_macros",
-        "env",
-        "string_env",
-        "partial_env",
-        "partial_string_env",
+        "user_defined_filters",
+        "template_searchpath",
+        "_env",
+        "_env_str",
     )
 
     def __init__(
         self,
         *,
-        template_fields: tuple[str, ...] | None = None,
-        template_fields_excluded: tuple[str, ...] | None = None,
-        user_defined_filters: dict[str, Callable] | None = None,
-        user_defined_macros: dict[str, Callable | Any] | None = None,
+        user_defined_macros: dict[str, Any] | None = None,
+        user_defined_filters: dict[str, Any] | None = None,
+        template_searchpath: tuple[str | Path, ...] | None = None,
     ) -> None:
-        self.template_fields = template_fields or ()
-        self.template_fields_excluded = template_fields_excluded or ()
-        self.user_defined_filters = user_defined_filters or {}
-        self.user_defined_macros = user_defined_macros or {}
+        """Initialize the Jinja renderer object.
 
-        self.env: Environment = NativeEnvironment(
-            undefined=Undefined, extensions=["jinja2.ext.do"]
-        )
-        self.string_env: Environment = Environment(
-            undefined=Undefined, extensions=["jinja2.ext.do"]
-        )
-        self.partial_env: Environment = NativeEnvironment(
-            undefined=PreserveUndefined, extensions=["jinja2.ext.do"]
-        )
-        self.partial_string_env: Environment = Environment(
-            undefined=PreserveUndefined, extensions=["jinja2.ext.do"]
-        )
-        for env in (
-            self.env,
-            self.string_env,
-            self.partial_env,
-            self.partial_string_env,
-        ):
-            env.globals.update(self.user_defined_macros)
-            env.filters.update(self.user_defined_filters)
-
-    def render(self, value: Any) -> Any:
-        """Recursively render ``value`` in strict mode.
-
-        Strings inside lists/dicts/sets/tuples are rendered; other
-        types pass through unchanged. Unresolved names or syntax
-        errors propagate.
+        Args:
+            user_defined_macros (dict[str, Any], optional):
+                A dictionary of user-defined macros to be added to the Jinja environment.
+            user_defined_filters (dict[str, Any], optional):
+                A dictionary of user-defined filters to be added to the Jinja environment.
+            template_searchpath (tuple[str | Path, ...], optional):
+                A tuple of paths to search for template files.
+                Required when using template file loading via ``template_ext``.
         """
-        return self._walk(value, partial=False)
+        self.user_defined_macros: dict[str, Any] = user_defined_macros or {}
+        self.user_defined_filters: dict[str, Any] = user_defined_filters or {}
+        self.template_searchpath: list[str] | None = (
+            [str(p) for p in template_searchpath]
+            if template_searchpath is not None
+            else None
+        )
 
-    def render_partial(self, value: Any) -> Any:
-        """Recursively render ``value`` in partial mode.
+        # Cache the Jinja2 Environment objects to avoid re-creating them multiple
+        #   times.
+        self._env: Environment | None = None
+        self._env_str: Environment | None = None
+        self.post_init()
 
-        Like :meth:`render`, but unresolved macros/filters/variables
-        are left as literal Jinja text so the result can be rendered
-        again later. ``TemplateSyntaxError`` still propagates.
+    def post_init(self) -> None:
+        """Post-initialization method to set up the Jinja2 environment."""
+        if self.user_defined_macros:
+            self.env.globals.update(self.user_defined_macros)
+
+        if self.user_defined_filters:
+            self.env.filters.update(self.user_defined_filters)
+
+    @property
+    def env(self) -> Environment:
+        """Return a Jinja2 Environment object for rendering templates."""
+        env: Environment | None = self._env
+        if env is None:
+            loader: FileSystemLoader | None = (
+                FileSystemLoader(self.template_searchpath)
+                if self.template_searchpath is not None
+                else None
+            )
+            env: Environment = NativeEnvironment(
+                loader=loader,
+                undefined=PreserveUndefined,
+                extensions=["jinja2.ext.do"],
+                autoescape=False,
+                trim_blocks=False,
+                lstrip_blocks=False,
+                cache_size=0,
+            )
+            self._env = env
+        return env
+
+    @property
+    def env_str(self) -> Environment:
+        """Return a Jinja2 Environment object for rendering templates from
+        strings.
         """
-        return self._walk(value, partial=True)
+        env_str: Environment | None = self._env_str
+        if env_str is None:
+            env_str: Environment = Environment(
+                undefined=PreserveUndefined,
+                autoescape=False,
+            )
+            self._env_str = env_str
+        return env_str
 
-    def render_template(self, data: Any) -> Any:
-        """Strict-render only the keys listed in :attr:`template_fields`.
+    def render(
+        self,
+        value: Any,
+        template_ext: tuple[str, ...] | None = None,
+    ) -> Any:
+        """Render Jinja templates inside ``value``.
 
-        Non-dict input is passed straight to :meth:`render`.
+        Args:
+            value (Any): The value to render, which can be a string, list, dict, set, or tuple.
+            template_ext (tuple[str, ...] | None, optional):
+                A tuple of file extensions to treat as template files.
+                If provided, strings ending with these extensions will be
+                rendered as templates.
         """
-        if not isinstance(data, dict):
-            return self.render(data)
-        excluded = self.template_fields_excluded
-        for key in self.template_fields:
-            if key in data and key not in excluded:
-                data[key] = self.render(data[key])
-        return data
-
-    def render_template_partial(self, data: Any) -> Any:
-        """Partial-render only the keys listed in :attr:`template_fields`.
-
-        Non-dict input is passed straight to :meth:`render_partial`.
-        """
-        if not isinstance(data, dict):
-            return self.render_partial(data)
-        excluded = self.template_fields_excluded
-        for key in self.template_fields:
-            if key in data and key not in excluded:
-                data[key] = self.render_partial(data[key])
-        return data
-
-    def set_globals(self, values: dict[str, Any]) -> Self:
-        """Update every environment's globals in place. Returns ``self``."""
-        self.user_defined_macros.update(values)
-        self.env.globals.update(values)
-        self.string_env.globals.update(values)
-        self.partial_env.globals.update(values)
-        self.partial_string_env.globals.update(values)
-        return self
+        return self._walk(value, template_ext=template_ext)
 
     def _walk(
         self,
         value: Any,
         *,
-        partial: bool,
+        template_ext: tuple[str, ...] | None = None,
         _seen: set[int] | None = None,
     ) -> Any:
         """Recursively render Jinja templates inside ``value``.
@@ -213,34 +208,47 @@ class JinjaRender:
         and returns unknown types unchanged.
         """
         if isinstance(value, str):
-            return self._render(value, partial=partial)
+            return self._render(value, template_ext=template_ext)
 
         if isinstance(value, (list, dict, set)):
             oid = id(value)
+
             if _seen is None:
                 _seen = set()
             elif oid in _seen:
                 return value  # cycle guard
+
             _seen.add(oid)
+
             try:
+                # handle dict
                 if isinstance(value, dict):
                     return {
-                        k: self._walk(v, partial=partial, _seen=_seen)
+                        k: self._walk(v, _seen=_seen, template_ext=template_ext)
                         for k, v in value.items()
                     }
+
+                # handle list
                 if isinstance(value, list):
                     return [
-                        self._walk(e, partial=partial, _seen=_seen)
+                        self._walk(e, _seen=_seen, template_ext=template_ext)
                         for e in value
                     ]
+
+                # handle set
                 return {
-                    self._walk(e, partial=partial, _seen=_seen) for e in value
+                    self._walk(e, _seen=_seen, template_ext=template_ext)
+                    for e in value
                 }
             finally:
                 _seen.discard(oid)
 
+        # handle tuple (including NamedTuple)
         if isinstance(value, tuple):
-            items = [self._walk(e, partial=partial, _seen=_seen) for e in value]
+            items = [
+                self._walk(e, _seen=_seen, template_ext=template_ext)
+                for e in value
+            ]
             return (
                 tuple(items)
                 if value.__class__ is tuple
@@ -249,7 +257,12 @@ class JinjaRender:
 
         return value
 
-    def _render(self, value: str, *, partial: bool) -> Any:
+    def _render(
+        self,
+        value: str,
+        *,
+        template_ext: tuple[str, ...] | None = None,
+    ) -> Any:
         """Render one string.
 
         - Strings without any Jinja tag pass through unchanged.
@@ -262,49 +275,40 @@ class JinjaRender:
           a unit (all-or-nothing) so ``NativeEnvironment`` can
           preserve native Python types.
         """
+        if template_ext and value.endswith(template_ext):
+            logger.debug("Render Template File: %s", value)
+            return self.env.get_template(value).render()
+
         if not is_jinja(value, pure=False):
             return value
-        logger.debug("👀 Render Template: %s", value)
 
-        if not partial:
-            try:
-                return self.env.from_string(value).render()
-            except TypeError:
-                # ``NativeEnvironment`` runs ``ast.literal_eval`` on
-                # the rendered text and can raise ``TypeError`` for
-                # legit output like ``{{ 1 }}`` (from ``{% raw %}``)
-                # which parses as an unhashable set-of-set. Fall
-                # back to plain string rendering — same globals,
-                # same strict undefined.
-                return self.string_env.from_string(value).render()
+        logger.debug("Render Template: %s", value)
 
         def _try(source: str) -> Any:
             try:
-                rendered = cast(
-                    Any, self.partial_env.from_string(source).render()
-                )
+                _rendered = self.env.from_string(source).render()
             except TemplateAssertionError:
                 # Unknown filter/test/macro at parse time.
-                # TemplateSyntaxError (parent) still propagates.
+                #   TemplateSyntaxError (parent) still propagates.
                 return source
             except UndefinedError:
                 return source
             except TypeError:
                 # NativeEnvironment feeds the rendered text through
-                # ``ast.literal_eval``; some strings (e.g. ``{{ 1 }}``
-                # emitted by ``{% raw %}...{% endraw %}``) parse as
-                # unhashable literals and raise ``TypeError``.
-                # Fall back to a plain string render.
+                #   ``ast.literal_eval``; some strings (e.g. ``{{ 1 }}``
+                #   emitted by ``{% raw %}...{% endraw %}``) parse as
+                #   unhashable literals and raise ``TypeError``.
+                #   Fall back to regular Environment for string output.
                 try:
-                    return self.partial_string_env.from_string(source).render()
-                except TemplateAssertionError, UndefinedError:
+                    return self.env_str.from_string(source).render()
+                except (TemplateAssertionError, UndefinedError):
                     return source
-            return source if isinstance(rendered, Undefined) else rendered
+            return source if isinstance(_rendered, Undefined) else _rendered
 
         # Splittable = no blocks/comments AND (multiple tags OR one
-        # tag not covering the entire string). The regex has a
-        # capturing group, so re.split alternates literal text (even
-        # indices) with Jinja tags (odd indices).
+        #   tag not covering the entire string). The regex has a
+        #   capturing group, so re.split alternates literal text (even
+        #   indices) with Jinja tags (odd indices).
         if "{%" not in value and "{#" not in value:
             matches = JINJA_PATTERN.findall(value)
             if len(matches) > 1 or (len(matches) == 1 and matches[0] != value):

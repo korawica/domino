@@ -1,6 +1,6 @@
 default_install_hook_types: [pre-commit, commit-msg, pre-push]
 default_language_version:
-    python: python3.14
+    python: python3.11
 
 ci:
     skip: [pytest-check, commit-msg-hook]
@@ -16,7 +16,7 @@ repos:
     rev:  v3.21.2
     hooks:
     -   id: pyupgrade
-        args: ["--py314-plus", "--keep-runtime-typing"]
+        args: ["--py311-plus", "--keep-runtime-typing"]
         stages: [pre-commit]
 
 -   repo: https://github.com/astral-sh/ruff-pre-commit

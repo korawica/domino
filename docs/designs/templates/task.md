@@ -31,8 +31,8 @@ tasks:
 
 ```yml
 tasks:
-  - id: task-id
-    type: task
+  - id: <task-id>
+    type: <task-type>
 
     timeout: 3600
     retries: 3
@@ -44,8 +44,8 @@ tasks:
 
 ```yml
 tasks:
-  - id: task-id
-    type: sensor
+  - id: <task-id>
+    type: <sensor-type>
 
     mode: poke
     poke_interval: 60
@@ -59,22 +59,22 @@ tasks:
     name: <task display name>
     type: group
     tasks:
-      - id: task-id
-        type: task
+      - id: <task-id>
+        type: <task-type>
 ```
 
 ### Branch
 
 ```yml
 tasks:
-  - id: task-id
-    type: branch
+  - id: <task-id>
+    type: <branch-type>
 ```
 
 ### Short Circuit
 
 ```yml
 tasks:
-  - id: task-id
-    type: short_circuit
+  - id: <task-id>
+    type: <short-circuit-type>
 ```
