@@ -1,5 +1,9 @@
+from airflow.sdk import TriggerRule
+from pendulum import datetime
+
 from domino.models.dag import Dag
 from domino.renderer import JinjaRenderer
+from domino.tasks import EmptyTask
 from domino.utils import DotDict
 
 
@@ -27,7 +31,14 @@ def test_dag():
     )
     assert dag.id == "test_dag"
     assert dag.schedule is None
-    assert dag.start_date == "2026-01-01"
+    assert dag.start_date == datetime(2026, 1, 1, tz="UTC")
+    assert dag.end_date is None
+    assert dag.tasks == [
+        EmptyTask(id="start"),
+        EmptyTask(
+            id="end", upstreams=["start"], trigger_rule=TriggerRule.ALL_SUCCESS
+        ),
+    ]
     assert dag.end_date is None
     assert dag.catchup is False
     assert len(dag.tasks) == 2
@@ -52,5 +63,5 @@ def test_dag_renderer():
             )
         },
     )
-    assert dag.start_date == "2026-01-01"
+    assert dag.start_date == datetime(2026, 1, 1, tz="UTC")
     assert dag.end_date is None

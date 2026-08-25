@@ -10,7 +10,7 @@ from jinja2.exceptions import TemplateAssertionError
 from jinja2.loaders import FileSystemLoader
 from jinja2.nativetypes import NativeEnvironment
 
-logger = logging.getLogger("domino")
+logger = logging.getLogger("domino.renderer")
 
 
 JINJA_PATTERN: Pattern[str] = compile(
@@ -127,6 +127,9 @@ class JinjaRenderer:
             if template_searchpath is not None
             else None
         )
+
+        # Cache the Jinja2 Environment objects to avoid re-creating them multiple
+        #   times.
         self._env: Environment | None = None
         self._env_str: Environment | None = None
         self.post_init()
@@ -163,7 +166,9 @@ class JinjaRenderer:
 
     @property
     def env_str(self) -> Environment:
-        """Return a Jinja2 Environment object for rendering templates from strings."""
+        """Return a Jinja2 Environment object for rendering templates from
+        strings.
+        """
         env_str: Environment | None = self._env_str
         if env_str is None:
             env_str: Environment = Environment(
@@ -178,6 +183,15 @@ class JinjaRenderer:
         value: Any,
         template_ext: tuple[str, ...] | None = None,
     ) -> Any:
+        """Render Jinja templates inside ``value``.
+
+        Args:
+            value (Any): The value to render, which can be a string, list, dict, set, or tuple.
+            template_ext (tuple[str, ...] | None, optional):
+                A tuple of file extensions to treat as template files.
+                If provided, strings ending with these extensions will be
+                rendered as templates.
+        """
         return self._walk(value, template_ext=template_ext)
 
     def _walk(
@@ -207,16 +221,21 @@ class JinjaRenderer:
             _seen.add(oid)
 
             try:
+                # handle dict
                 if isinstance(value, dict):
                     return {
                         k: self._walk(v, _seen=_seen, template_ext=template_ext)
                         for k, v in value.items()
                     }
+
+                # handle list
                 if isinstance(value, list):
                     return [
                         self._walk(e, _seen=_seen, template_ext=template_ext)
                         for e in value
                     ]
+
+                # handle set
                 return {
                     self._walk(e, _seen=_seen, template_ext=template_ext)
                     for e in value
@@ -224,6 +243,7 @@ class JinjaRenderer:
             finally:
                 _seen.discard(oid)
 
+        # handle tuple (including NamedTuple)
         if isinstance(value, tuple):
             items = [
                 self._walk(e, _seen=_seen, template_ext=template_ext)
@@ -256,13 +276,13 @@ class JinjaRenderer:
           preserve native Python types.
         """
         if template_ext and value.endswith(template_ext):
-            logger.debug("👀 Render Template File: %s", value)
+            logger.debug("Render Template File: %s", value)
             return self.env.get_template(value).render()
 
         if not is_jinja(value, pure=False):
             return value
 
-        logger.debug("👀 Render Template: %s", value)
+        logger.debug("Render Template: %s", value)
 
         def _try(source: str) -> Any:
             try:

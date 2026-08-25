@@ -110,6 +110,8 @@ class DagFactory:
         self.loader = DagLoader(self.path)
         self.conf: Dag | None = None
 
+        # Cache the JinjaRenderer object to avoid re-rendering the template
+        #   fields multiple times.
         self._jinja_renderer: JinjaRenderer | None = None
 
     @property

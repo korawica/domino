@@ -80,7 +80,12 @@ def read_yaml_conf(  # NOSONAR
         list[dict[str, Any]]: A list of conf data after validate step.
     """
 
-    def _process(file: Path) -> dict[str, Any] | None:
+    def _extract(file: Path) -> dict[str, Any] | None:
+        """Internal extract YAML content from file and validate the data.
+
+        Args:
+            file (Path): A path that use for searching config file.
+        """
         logger.debug(f"💡 Get Object: {file}")
         try:
             raw_data, data = extract_yaml(file=file)
@@ -103,24 +108,23 @@ def read_yaml_conf(  # NOSONAR
 
         file_stats = file.stat()
         model: dict[str, Any] = {
-            "filename": file.name,
-            "parent_dir": file.parent,
-            "created_dt": file_stats.st_ctime,
-            "updated_dt": file_stats.st_mtime,
+            "__filename": file.name,
+            "__parent_dir": file.parent,
+            "__created_dt": file_stats.st_ctime,
+            "__updated_dt": file_stats.st_mtime,
             # ⏭️ NOTE: Remove hash for reduce parsing performance impact.
             # "raw_data_hash": hash_sha256(raw_data),
             **data,
         }
         if include_raw_content:
-            model["raw_data"] = raw_data
+            model["__raw_data"] = raw_data
 
         logger.info(f"⚙️ Load Conf ID: {model[id_key]!r}")
 
         if pre_validate is not None:
             try:
                 pre_validate(model)
-            except Exception as err:
-                logger.error(f"🚨 Prevalidate config data:\n{err}")
+            except Exception:
                 raise
 
         return model
@@ -132,7 +136,7 @@ def read_yaml_conf(  # NOSONAR
     ]
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
         conf: list[dict[str, Any]] = [
-            r for r in executor.map(_process, files) if r is not None
+            r for r in executor.map(_extract, files) if r is not None
         ]
 
     if not conf:
@@ -155,15 +159,26 @@ class DagLoader:
 
     __slots__ = ("path",)
 
-    def __init__(self, path: Path):
+    def __init__(self, path: Path) -> None:
         self.path = path
 
     def read_dag(self) -> dict[str, Any]:
-        conf = read_yaml_conf(
+        """Read the DAG template file and return the data that already read via
+        YAML parser.
+        """
+        conf: list[dict[str, Any]] = read_yaml_conf(
             path=self.path,
             id_key="id",
             conf_type=("dag",),
             prefix_pattern="dag",
-            only_one_conf=True,
+            only_one_conf=False,
         )
-        return conf[0]
+        return next(
+            iter(
+                sorted(
+                    conf,
+                    key=lambda x: x.get("__filename", "__old"),
+                    reverse=True,
+                )
+            )
+        )

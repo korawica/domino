@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from typing import Any, ClassVar, Final
 
 from pydantic import BaseModel, ValidationInfo
@@ -53,6 +54,9 @@ class Templater(BaseModel):
     template_fields: ClassVar[tuple[str, ...]] = ()
     template_fields_ext: ClassVar[dict[str, tuple[str, ...]]] = {}
 
+    pre_extract_template_fields: ClassVar[dict[str, Callable[[...], Any]]] = {}
+    post_extract_template_fields: ClassVar[dict[str, Callable[[...], Any]]] = {}
+
     @classmethod
     def render_field(
         cls,
@@ -60,7 +64,7 @@ class Templater(BaseModel):
         data: Any,
         renderer: JinjaRenderer,
         *,
-        is_glob_from_default: bool = False,
+        is_pydantic_default: bool = False,
     ) -> Any:
         """Render a template field using the provided Jinja renderer.
 
@@ -68,19 +72,26 @@ class Templater(BaseModel):
             name (str): The name of the template field.
             data (Any): The data to be rendered.
             renderer (JinjaRenderer): The Jinja renderer instance.
-            is_glob_from_default (bool): Flag for allow to check the value of global
-                variable that set from default need to set before create DAG
-                object.
+            is_pydantic_default (bool, default ``False``):
+                Flag for allow to check the value of global variable that set
+                from default need to set before create DAG object.
 
         Returns:
             Any: The rendered data.
         """
+        pre_extract: Callable[[...], Any] = cls.pre_extract_template_fields.get(
+            name, lambda x: x
+        )
+        post_extract: Callable[[...], Any] = (
+            cls.post_extract_template_fields.get(name, lambda x: x)
+        )
         data: Any = renderer.render(
-            data,
+            pre_extract(data),
             template_ext=(
                 cls.base_template_fields_ext | cls.template_fields_ext
             ).get(name),
         )
+        data = post_extract(data)
 
         # NOTE: Check the render result cannot resolve the Global variable
         #   pattern. This case will raise a ValueError because we expect that
@@ -89,7 +100,7 @@ class Templater(BaseModel):
         if (
             isinstance(data, str)
             and (match := GLOB_VAR_PATTERN.search(data))
-            and is_glob_from_default
+            and is_pydantic_default
         ):
             value: str = match.group("glob")
             logger.warning(
@@ -136,7 +147,7 @@ class Templater(BaseModel):
                 dict.fromkeys(cls.base_template_fields + cls.template_fields)
             ):
                 field_value: Any = data.get(field_name)
-                is_glob_from_default: bool = False
+                is_pydantic_default: bool = False
 
                 # Pre-set default to the value that using glob variable
                 #   if the field value is None. This is to avoid rendering issues
@@ -153,7 +164,7 @@ class Templater(BaseModel):
                         field_name,
                     )
                     field_value: str = default
-                    is_glob_from_default: bool = True
+                    is_pydantic_default: bool = True
 
                 # Only render if ``field_value`` is not None or empty
                 if field_value:
@@ -161,6 +172,6 @@ class Templater(BaseModel):
                         field_name,
                         field_value,
                         renderer,
-                        is_glob_from_default=is_glob_from_default,
+                        is_pydantic_default=is_pydantic_default,
                     )
         return data
