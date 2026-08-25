@@ -2,7 +2,7 @@ from typing import Annotated, Union
 
 from pydantic import Field
 
-from .domino import DominoTask, ErrorTask, OperatorTask
+from .domino import DominoTask, ErrorTask, OperatorTask, SensorTask
 from .standard import (
     BashTask,
     BranchPythonTask,
@@ -23,6 +23,7 @@ Task = Annotated[
         DominoTask,
         ErrorTask,
         OperatorTask,
+        SensorTask,
     ],
     Field(
         discriminator="type",

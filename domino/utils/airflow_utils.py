@@ -34,45 +34,45 @@ def get_dags_path() -> Path | None:
 
 def set_upstream_and_teardown(
     tasks: dict[str, TaskContext],
-    label_sep_on_task_id: str = "::",
+    label_seperator: str = "::",
 ) -> None:  # NOSONAR
     """Set Upstream and Teardown Task for each tasks in mapping.
 
     Args:
         tasks (dict[str, TaskContext]): A mapping of task ID and TaskContext dict
             object.
-        label_sep_on_task_id (str, optional): A separator string for the task ID
+        label_seperator (str, optional): A separator string for the task ID
             to split the label from the task ID. Defaults to "::".
     """
     for task in tasks:
-        task_mapped: TaskContext = tasks[task]
+        task_context: TaskContext = tasks[task]
 
         # Set upstream task if it is defined in the template.
-        if upstream := task_mapped["upstreams"]:
+        if upstream := task_context["upstreams"]:
             for t in upstream:
                 try:
-                    if label_sep_on_task_id in t:
+                    if label_seperator in t:
                         t, label = t.split(
-                            label_sep_on_task_id,
+                            label_seperator,
                             maxsplit=1,
                         )
                         if label:
-                            task_mapped["task"].set_upstream(
+                            task_context["task"].set_upstream(
                                 tasks[t]["task"], edge_modifier=Label(label)
                             )
                             continue
 
                     # Default case without edge modifier
-                    task_mapped["task"].set_upstream(tasks[t]["task"])
+                    task_context["task"].set_upstream(tasks[t]["task"])
                 except KeyError as e:
                     raise KeyError(
                         f"Task ids, {e}, does not found from the template.\n"
                         f"The current task key: {list(tasks.keys())}"
                     ) from e
         # Set setup & teardown task if it is defined in the template.
-        if teardown := task_mapped.get("teardown"):
+        if teardown := task_context.get("teardown"):
             try:
-                task_mapped["task"].as_teardown(setups=tasks[teardown]["task"])
+                task_context["task"].as_teardown(setups=tasks[teardown]["task"])
             except KeyError as e:
                 raise KeyError(
                     f"Setups task id, {e}, does not found from the template.\n"
