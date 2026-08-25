@@ -51,4 +51,6 @@ def test_dag_factory_default_build(mock_dag_path: Path):
     assert len(dag.tasks) == 2
     assert dag.tasks[1].dag_id == "example"
     assert dag.tasks[1].task_id == "end"
-    assert dag.tasks[1].upstream_task_ids == ["start"]
+    assert dag.tasks[1].upstream_task_ids == {
+        "start",
+    }

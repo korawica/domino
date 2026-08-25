@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Annotated, Literal, Union
 from airflow.sdk.definitions.taskgroup import TaskGroup
 from pydantic import Field
 
-from ..const import MAX_THREADS_BUILD_TASK_GROUP
+from ..const import MAX_THREADS_BUILD_TASKGROUP
 from ..tasks import Task
 from .builder import BaseAirflowTaskOrGroupBuilder
 
@@ -84,7 +84,7 @@ class Group(BaseAirflowTaskOrGroupBuilder):
         # Start build tasks inside this task group mode.
         #   Move to use thread pool to speed up the building process.
         #   Use fail-fast strategy to stop immediately on first error.
-        with ThreadPoolExecutor(MAX_THREADS_BUILD_TASK_GROUP) as executor:
+        with ThreadPoolExecutor(MAX_THREADS_BUILD_TASKGROUP) as executor:
             futures: list[Future] = [
                 executor.submit(
                     task.backend_build,

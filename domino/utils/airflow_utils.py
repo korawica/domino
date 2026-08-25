@@ -48,8 +48,7 @@ def set_upstream_and_teardown(
         task_mapped: TaskContext = tasks[task]
 
         # Set upstream task if it is defined in the template.
-        if upstream := task_mapped["upstream"]:
-            print("Start map upstream: ", upstream)
+        if upstream := task_mapped["upstreams"]:
             for t in upstream:
                 try:
                     if label_sep_on_task_id in t:

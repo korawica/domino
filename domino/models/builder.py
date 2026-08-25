@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from airflow.sdk.bases.operator import BaseOperator
 from airflow.sdk.definitions.taskgroup import TaskGroup
-from pydantic import Field
+from pydantic import ConfigDict, Field
 
 from .__types import BaseOperatorOrTaskGroup
 from .templater import Templater
@@ -63,6 +63,9 @@ class AirflowBuilderMixin(ABC):
 class BaseAirflowBuilder(Templater, AirflowBuilderMixin, ABC):
     """Base Builder Model."""
 
+    # It should not allow to add extra fields
+    model_config = ConfigDict(extra="forbid")
+
 
 class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
     """Base Airflow Task or TaskGroup Builder Model."""
@@ -72,7 +75,7 @@ class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
         default=None,
         description="A task or task group description.",
     )
-    upstream: list[str] = Field(
+    upstreams: list[str] = Field(
         default_factory=list,
         description="A list of upstream task IDs",
     )
@@ -108,8 +111,8 @@ class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
         # Start call build the Airflow object from the `build` method.
         task_airflow: BaseOperatorOrTaskGroup = self.build(
             dag=dag,
-            task_group=task_group,
             build_context=build_context,
+            task_group=task_group,
         )
 
         if not isinstance(task_airflow, (BaseOperator, TaskGroup)):
@@ -121,10 +124,7 @@ class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
 
         tasks: dict[str, TaskContext] | None = build_context.get("tasks")
         if tasks is None:
-            print("tasks is None, skip mapping upstream and teardown.")
             return task_airflow
-
-        print("tasks is not none")
 
         # Support for duplicate ID for mapping upstream.
         teardown: str | None = None
@@ -155,7 +155,7 @@ class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
                 )
 
             tasks[_id] = {
-                "upstream": self.upstream,
+                "upstreams": self.upstreams,
                 "teardown": teardown,
                 "task": task_airflow,
             }

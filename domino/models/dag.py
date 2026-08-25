@@ -13,7 +13,7 @@ from pydantic.functional_validators import field_validator
 from ..const import MAX_THREADS_BUILD_TASK
 from ..utils import int2seconds, set_upstream_and_teardown
 from .label import Label
-from .task_group import TaskOrGroup
+from .taskgroup import TaskOrGroup
 from .templater import Templater
 
 if TYPE_CHECKING:

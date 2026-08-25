@@ -18,7 +18,7 @@ class TaskContext(TypedDict):
     """Task Context dict typed."""
 
     task: BaseOperatorOrTaskGroup
-    upstream: list[str]
+    upstreams: list[str]
     teardown: NotRequired[str | None]
 
 
