@@ -107,7 +107,9 @@ class JinjaRenderer:
         *,
         user_defined_macros: dict[str, Any] | None = None,
         user_defined_filters: dict[str, Any] | None = None,
-        template_searchpath: tuple[str | Path, ...] | None = None,
+        template_searchpath: tuple[str | Path, ...]
+        | list[str | Path]
+        | None = None,
     ) -> None:
         """Initialize the Jinja renderer object.
 
@@ -147,6 +149,7 @@ class JinjaRenderer:
         """Return a Jinja2 Environment object for rendering templates."""
         env: Environment | None = self._env
         if env is None:
+            # setup loader from template searching path
             loader: FileSystemLoader | None = (
                 FileSystemLoader(self.template_searchpath)
                 if self.template_searchpath is not None

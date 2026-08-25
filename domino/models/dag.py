@@ -9,6 +9,7 @@ from pendulum import DateTime, parse
 from pydantic import ConfigDict, Field
 from pydantic.functional_validators import field_validator
 
+from ..utils import int2seconds
 from .label import Label
 from .task_group import TaskOrGroup
 from .templater import Templater
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class Dag(Templater):
-    """DAG Model."""
+    """DAG model."""
 
     model_config = ConfigDict(
         # Allow to accept pendulum.DateTime type
@@ -30,6 +31,7 @@ class Dag(Templater):
         "owners",
         "tags",
         "labels",
+        "tz",
         "schedule",
         "start_date",
         "end_date",
@@ -70,7 +72,13 @@ class Dag(Templater):
         default_factory=Label,
         description="A set of labels associated with the DAG.",
     )
-
+    tz: str | None = Field(
+        default=None,
+        description=(
+            "The timezone for the DAG. If not specified, the default timezone "
+            "from Airflow configuration will be used."
+        ),
+    )
     schedule: str | None = Field(
         default=None,
         description="The schedule interval for the DAG, in cron format or a preset.",
@@ -116,14 +124,15 @@ class Dag(Templater):
     @classmethod
     def validate_datetime(cls, data: Any) -> DateTime | None:
         if isinstance(data, str):
+            # handle null or none string to return None
             if data.lower() in ("null", "none"):
                 return None
 
             return cast(DateTime, parse(data, strict=True, exact=False))
+
         elif data and isinstance(data, datetime):
-            if data.tzinfo is None:
-                return pendulum.instance(data)
             return pendulum.instance(data)
+
         return data
 
     def dag_kwargs(self, exclude: set[str] | None = None) -> dict[str, Any]:
@@ -131,11 +140,22 @@ class Dag(Templater):
         to passing to Airflow DAG object.
         """
         kws = self.model_dump(
-            exclude=exclude,
+            exclude={
+                "docs",
+                "type",
+                "tasks",
+                "owners",
+                "labels",
+                "tags",
+            }
+            | (exclude or set()),
             exclude_unset=True,
         )
         kws["dag_id"] = kws.pop("id")
+        kws["doc_md"] = kws.pop("docs", None)
         kws["description"] = kws.pop("desc", None)
+        kws["dagrun_timeout"] = int2seconds(kws.pop("dagrun_timeout_sec", None))
+        kws["owner_links"] = {owner: owner for owner in kws.pop("owners", [])}
         return kws
 
     def build(
@@ -146,13 +166,6 @@ class Dag(Templater):
         label: Label = build_context["label"]
         dag = DAG(
             tags=set(self.tags) | label.make_tags(),
-            **self.dag_kwargs(
-                exclude={
-                    "type",
-                    "tasks",
-                    "labels",
-                    "tags",
-                },
-            ),
+            **self.dag_kwargs(),
         )
         return dag

@@ -26,7 +26,7 @@ class DominoBuilderMixin(ABC):
 
         Args:
             build_context (BuildContext):
-                A Context data that was created from the DAG Generator object.
+                A Context data that was created from the DAG Factory object.
         """
         raise NotImplementedError(
             "This Builder object should implement build method."
@@ -47,7 +47,7 @@ class AirflowBuilderMixin(ABC):
         Args:
             dag (DAG): An Airflow DAG object.
             build_context (BuildContext):
-                A Context data that was created from the DAG Generator object.
+                A Context data that was created from the DAG Factory object.
             task_group (TaskGroup, optional): An Airflow TaskGroup object
                 if this task build under the task group.
 
@@ -97,7 +97,7 @@ class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
         Args:
             dag (DAG): An Airflow DAG object.
             build_context (BuildContext):
-                A Context data that was created from the DAG Generator object.
+                A Context data that was created from the DAG Factory object.
             task_group (TaskGroup, default None): An Airflow TaskGroup object
                 if this task build under the task group.
 

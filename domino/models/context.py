@@ -9,7 +9,7 @@ from .__types import BaseOperator, BaseOperatorOrTaskGroup
 if TYPE_CHECKING:
     from threading import Lock
 
-    from ..renderer import JinjaRender
+    from ..renderer import JinjaRenderer
     from .builder import BaseAirflowTaskOrGroupBuilder
     from .label import Label
 
@@ -25,15 +25,15 @@ class TaskContext(TypedDict):
 class BuildContext(TypedDict):
     """Building Context type dict.
 
-    This building context was created from the DAG Generator object and passed
+    This building context was created from the DAG Factory object and passed
     to each task build method.
     """
 
     path: Path
     label: Label
-    jinja_renderer: JinjaRender
+    jinja_renderer: JinjaRenderer
 
-    # task generator context
+    # task Factory context
     tasks: dict[str, TaskContext]
     tasks_lock: NotRequired[Lock]
     dataset_hook: NotRequired[Callable[..., Any]]

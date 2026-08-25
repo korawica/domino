@@ -57,7 +57,7 @@ class Group(BaseAirflowTaskOrGroupBuilder):
             task_group (TaskGroup, default None): An Airflow TaskGroup object
                 if this task build under the task group.
             build_context (BuildContext, default None):
-                A Context data that was created from the DAG Generator object.
+                A Context data that was created from the DAG Factory object.
 
         Returns:
             TaskGroup: An Airflow TaskGroup instance.

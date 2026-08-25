@@ -114,7 +114,7 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
     @model_validator(mode="after")
     def inject_callbacks(self, info: ValidationInfo) -> Self:
         """Inject the callback fields with the task callbacks that already pass in
-        the context from DAG generator.
+        the context from DAG Factory.
 
         This method will collect the callback value from the context and map it
         to the callback fields if the name of the callback exist in the field

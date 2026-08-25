@@ -36,8 +36,10 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
     shutil.rmtree(mock_dag_path, ignore_errors=True)
 
 
-def test_dag_factory(mock_dag_path: Path):
+def test_dag_factory_default_build(mock_dag_path: Path):
     factory = DagFactory(path=mock_dag_path)
     dag: DAG = factory.build()
     assert dag.dag_id == "example"
     assert dag.start_date is None
+    assert dag.end_date is None
+    assert dag.owner == ""

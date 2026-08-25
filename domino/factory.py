@@ -41,6 +41,7 @@ class DagFactory:
         "on_task_callbacks",
         "user_defined_macros",
         "user_defined_filters",
+        "template_searchpath",
         "_jinja_renderer",
     )
 
@@ -83,8 +84,9 @@ class DagFactory:
         # Jinja environment
         user_defined_macros: dict[str, Callable[..., Any]] | None = None,
         user_defined_filters: dict[str, Callable[..., Any]] | None = None,
+        template_searchpath: list[str] | None = None,
     ) -> None:
-        """Initialize the DAG Generator.
+        """Initialize the DAG Factory.
 
         Args:
             path (Path | str): Path to the DAG template folder.
@@ -106,6 +108,13 @@ class DagFactory:
 
         self.user_defined_macros = user_defined_macros or {}
         self.user_defined_filters = user_defined_filters or {}
+
+        self.template_searchpath: list[str] = [
+            # NOTE: Remove resolve for fixing GitSync change hash path.
+            # str(p.resolve().absolute())
+            str(p.absolute()) if isinstance(p, Path) else p
+            for p in (template_searchpath or [])
+        ] + [str(self.path.absolute()), str((self.path / "assets").absolute())]
 
         self.loader = DagLoader(self.path)
         self.conf: Dag | None = None
@@ -146,6 +155,7 @@ class DagFactory:
             jinja_renderer: JinjaRenderer = JinjaRenderer(
                 user_defined_macros=self.user_defined_macros,
                 user_defined_filters=self.user_defined_filters,
+                template_searchpath=self.template_searchpath,
             )
             self._jinja_renderer = jinja_renderer
         return jinja_renderer

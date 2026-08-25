@@ -1,7 +1,7 @@
 [project]
 name = "domino"
 version = "0.0.1"
-description = "YAML template for Apache Airflow"
+description = "a lightweight YAML template for Apache Airflow"
 readme = "README.md"
 requires-python = ">=3.11,<3.15"
 dependencies = [
