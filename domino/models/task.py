@@ -40,6 +40,13 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
         default_factory=list,
         description="A list of upstream task IDs for the task.",
     )
+    teardown: str | None = Field(
+        default=None,
+        description=(
+            "A setup task ID that will need to run before this task. "
+            "[Read more about setup and teardown in the Airflow](https://airflow.apache.org/docs/apache-airflow/stable/howto/setup-and-teardown.html)."
+        ),
+    )
     trigger_rule: TriggerRule = Field(
         default=TriggerRule.ALL_SUCCESS,
         description="The trigger rule for the task.",
@@ -179,6 +186,7 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
                 "type",
                 "desc",
                 "upstreams",
+                "teardown",
             },
         )
 

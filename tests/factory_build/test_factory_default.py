@@ -23,10 +23,15 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
                   - id: start
                     type: empty
 
-                  - id: end
+                  - id: process
                     type: empty
                     upstreams: [start]
                     trigger_rule: all_success
+
+                  - id: end
+                    type: empty
+                    upstreams: [start, process]
+                    teardown: start
                 """.lstrip("\n")
             )
         )
@@ -44,13 +49,26 @@ def test_dag_factory_default_build(mock_dag_path: Path):
     assert dag.end_date is None
     assert dag.owner == "airflow"
 
-    assert len(dag.tasks) == 2
+    assert len(dag.tasks) == 3
     assert dag.tasks[0].dag_id == "example"
     assert dag.tasks[0].task_id == "start"
 
-    assert len(dag.tasks) == 2
     assert dag.tasks[1].dag_id == "example"
-    assert dag.tasks[1].task_id == "end"
+    assert dag.tasks[1].task_id == "process"
     assert dag.tasks[1].upstream_task_ids == {
         "start",
+    }
+
+    assert dag.tasks[2].dag_id == "example"
+    assert dag.tasks[2].task_id == "end"
+    assert dag.tasks[2].upstream_task_ids == {
+        "start",
+        "process",
+    }
+    assert dag.tasks[2].is_teardown
+
+    assert len(dag.tasks_upstream_of_teardowns) == 2
+    assert {op.task_id for op in dag.tasks_upstream_of_teardowns} == {
+        "start",
+        "process",
     }
