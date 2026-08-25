@@ -106,7 +106,10 @@ class DominoTask(BaseOperatorTask):
             self.inputs.task_object
         ].model_validate(
             obj={"id": self.id} | self.inputs.model_dump(),
-            context={"jinja_renderer": build_context["jinja_renderer"]},
+            context={
+                # pass Jinja renderer from building context to Domino task.
+                "jinja_renderer": build_context["jinja_renderer"],
+            },
         )
         return model.build(
             dag=dag,

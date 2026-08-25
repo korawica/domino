@@ -26,6 +26,31 @@ class BashKwargs(BaseModel, DominoBuilderMixin):
         description="The command, set of commands or reference to a bash script "
         "to be executed.",
     )
+    env: dict[str, str] | None = Field(
+        default=None,
+        description="A dictionary of environment variables to set for the command.",
+    )
+    append_env: bool = Field(
+        default=False,
+        description="Whether or not to append the environment variables to the existing "
+        "environment variables.",
+    )
+    output_encoding: str = Field(
+        default="utf-8",
+        description="The encoding to use for the output of the command.",
+    )
+    skip_on_exit_code: list[int] | None = Field(
+        default_factory=lambda: [99],
+        description="A list of exit codes that will be treated as a success.",
+    )
+    cwd: str | None = Field(
+        default=None,
+        description="The working directory to execute the command in.",
+    )
+    output_processor: str | None = Field(
+        default=None,
+        description="A command to process the output of the bash command.",
+    )
 
     def build(self, build_context: BuildContext) -> dict[str, Any]:
         """Build a dictionary of keyword arguments for the BashOperator.
@@ -34,7 +59,10 @@ class BashKwargs(BaseModel, DominoBuilderMixin):
             build_context (BuildContext):
                 A Context data that was created from the DAG Factory object.
         """
-        return self.model_dump()
+        return self.model_dump(
+            exclude={"output_processor"},
+            exclude_unset=True,
+        )
 
 
 class BashTask(BaseOperatorTask):
@@ -74,9 +102,26 @@ class BashTask(BaseOperatorTask):
         Returns:
             BaseOperatorOrTaskGroup: An Airflow BashOperator object.
         """
+        extras: dict[str, Any] = {}
+
+        # prepare output_processor if provided
+        if self.inputs.output_processor:
+            if (
+                self.inputs.output_processor
+                not in build_context["python_callables"]
+            ):
+                raise ValueError(
+                    f"Output processor function need to pass python function name, "
+                    f"{self.inputs.output_processor}, first."
+                )
+            extras["output_processor"] = build_context["python_callables"][
+                self.inputs.output_processor
+            ]
+
         return BashOperator(
             dag=dag,
             task_group=task_group,
+            **extras,
             **self.inputs.build(build_context=build_context),
             **self.base_op_kwargs(build_context=build_context),
         )

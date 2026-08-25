@@ -43,8 +43,8 @@ class ErrorOperator(BaseOperator):
         raise AirflowException(self.message)
 
 
-class ErrorInput(BaseModel):
-    """Error Input model."""
+class ErrorKwargs(BaseModel):
+    """Error Operator kwargs model."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -74,8 +74,8 @@ class ErrorTask(BaseOperatorTask):
     """
 
     type: Literal["error"] = "error"
-    inputs: ErrorInput = Field(
-        default_factory=ErrorInput,
+    inputs: ErrorKwargs = Field(
+        default_factory=ErrorKwargs,
         description="Input parameters for the raise task.",
     )
 

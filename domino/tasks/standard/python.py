@@ -25,13 +25,25 @@ class PythonKwargs(BaseModel, DominoBuilderMixin):
         ...,
         description="A Python callable function.",
     )
-    op_args: list[Any] = Field(
-        default_factory=list,
+    op_args: list[Any] | None = Field(
+        default=None,
         description="A list of positional arguments to pass to the callable.",
     )
-    op_kwargs: dict[str, Any] = Field(
-        default_factory=dict,
+    op_kwargs: dict[str, Any] | None = Field(
+        default=None,
         description="A dictionary of keyword arguments to pass to the callable.",
+    )
+    templates_dict: dict[str, Any] | None = Field(
+        default=None,
+        description="A dictionary of template fields to render before passing to the callable.",
+    )
+    templates_exts: list[str] | None = Field(
+        default=None,
+        description="A list of file extensions to consider as templates.",
+    )
+    show_return_value_in_logs: bool = Field(
+        default=True,
+        description="Whether to show the return value of the callable in the logs.",
     )
 
     def build(self, build_context: BuildContext) -> dict[str, Any]:
@@ -46,7 +58,10 @@ class PythonKwargs(BaseModel, DominoBuilderMixin):
                 Python task that was generated from the model dumping method
                 excluded ``python_callable``.
         """
-        return self.model_dump(exclude={"python_callable"})
+        return self.model_dump(
+            exclude={"python_callable"},
+            exclude_unset=True,
+        )
 
 
 class PythonTask(BaseOperatorTask):
