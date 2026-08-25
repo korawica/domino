@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from contextlib import nullcontext
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from airflow.sdk.bases.operator import BaseOperator
 from airflow.sdk.definitions.taskgroup import TaskGroup
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 class DominoBuilderMixin(ABC):
     @abstractmethod
-    def build(self, build_context: BuildContext) -> None:
+    def build(self, build_context: BuildContext) -> Any:
         """Object building method for any builder object.
 
         Args:
@@ -66,11 +66,12 @@ class BaseAirflowBuilder(Templater, AirflowBuilderMixin, ABC):
     # It should not allow to add extra fields
     model_config = ConfigDict(extra="forbid")
 
+    id: str = Field(..., description="A unique identifier")
+
 
 class BaseAirflowTaskOrGroupBuilder(BaseAirflowBuilder, ABC):
     """Base Airflow Task or TaskGroup Builder Model."""
 
-    id: str = Field(..., description="A unique identifier")
     desc: str | None = Field(
         default=None,
         description="A task or task group description.",

@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class EmptyTask(BaseOperatorTask):
-    """Empty Task.
+    """Empty task.
 
     !!! tip "Airflow Operator: `airflow.providers.standard.operators.empty.EmptyOperator`"
 

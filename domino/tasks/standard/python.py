@@ -3,19 +3,23 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Any, Literal
 
 from airflow.providers.standard.operators.python import PythonOperator
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
+from ...models.builder import DominoBuilderMixin
 from ...models.task import BaseOperatorTask
 
 if TYPE_CHECKING:
     from airflow.sdk.definitions.dag import DAG
     from airflow.sdk.definitions.taskgroup import TaskGroup
 
+    from ...models.__types import BaseOperatorOrTaskGroup
     from ...models.context import BuildContext
 
 
-class PythonKwargs(BaseModel):
-    """Python Task kwargs."""
+class PythonKwargs(BaseModel, DominoBuilderMixin):
+    """Python Operator kwargs."""
+
+    model_config = ConfigDict(extra="forbid")
 
     python_callable: Any = Field(
         ...,
@@ -30,16 +34,23 @@ class PythonKwargs(BaseModel):
         description="A dictionary of keyword arguments to pass to the callable.",
     )
 
-    def dump_kwargs(self):
-        return {
-            "python_callable": self.python_callable,
-            "op_args": self.op_args,
-            "op_kwargs": self.op_kwargs,
-        }
+    def build(self, build_context: BuildContext) -> dict[str, Any]:
+        """Build a dictionary of keyword arguments for the PythonOperator.
+
+        Args:
+            build_context (BuildContext):
+                A Context data that was created from the DAG Factory object.
+
+        Returns:
+            dict[str, Any]: A dictionary of keyword arguments to pass to the
+                Python task that was generated from the model dumping method
+                excluded ``python_callable``.
+        """
+        return self.model_dump(exclude={"python_callable"})
 
 
 class PythonTask(BaseOperatorTask):
-    """Python Task.
+    """Python task.
 
     Examples:
 
@@ -68,10 +79,30 @@ class PythonTask(BaseOperatorTask):
         dag: DAG,
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
-    ) -> Any:
+    ) -> BaseOperatorOrTaskGroup:
+        """Build an Airflow PythonOperator object.
+
+         Args:
+            dag (DAG): An Airflow DAG object.
+            build_context (BuildContext):
+                A Context data that was created from the DAG Factory object.
+            task_group (TaskGroup, optional): An Airflow TaskGroup object
+                if this task build under the task group.
+
+        Returns:
+            BaseOperatorOrTaskGroup: An Airflow PythonOperator object.
+        """
+        if self.inputs.python_callable not in build_context["python_callables"]:
+            raise ValueError(
+                f"Python task need to pass python function name, "
+                f"{self.inputs.python_callable}, first."
+            )
         return PythonOperator(
-            task_id=self.id,
             dag=dag,
             task_group=task_group,
-            **self.inputs.dump_kwargs(),
+            python_callable=build_context["python_callables"][
+                self.inputs.python_callable
+            ],
+            **self.inputs.build(build_context=build_context),
+            **self.base_op_kwargs(build_context=build_context),
         )

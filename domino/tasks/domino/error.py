@@ -1,21 +1,30 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from typing import TYPE_CHECKING, Any, Literal
 
-from airflow import DAG
-from airflow.sdk import Context, TaskGroup
 from airflow.sdk.bases.operator import BaseOperator
 from airflow.sdk.exceptions import AirflowException, AirflowSkipException
-from pydantic import BaseModel, Field
-
-from domino.models.__types import BaseOperatorOrTaskGroup
-from domino.models.context import BuildContext
+from pydantic import BaseModel, ConfigDict, Field
 
 from ...models.task import BaseOperatorTask
 
+if TYPE_CHECKING:
+    from airflow.sdk import Context
+    from airflow.sdk.definitions.dag import DAG
+    from airflow.sdk.definitions.taskgroup import TaskGroup
+
+    from ...models.__types import BaseOperatorOrTaskGroup
+    from ...models.context import BuildContext
+
 
 class ErrorOperator(BaseOperator):
-    """Error Operator."""
+    """Error operator.
+
+    This class inherits from the Airflow BaseOperator and is used to raise an
+    error during the execution of a task. It can be configured to either raise
+    a hard failure (AirflowException) or a soft failure (AirflowSkipException)
+    based on the `soft_fail` parameter.
+    """
 
     def __init__(
         self,
@@ -37,6 +46,8 @@ class ErrorOperator(BaseOperator):
 class ErrorInput(BaseModel):
     """Error Input model."""
 
+    model_config = ConfigDict(extra="forbid")
+
     message: str | None = Field(
         default=None, description="An error message that want to show."
     )
@@ -47,7 +58,20 @@ class ErrorInput(BaseModel):
 
 
 class ErrorTask(BaseOperatorTask):
-    """Error task."""
+    """Error task.
+
+    !!! tip "Domino Operator: `domino.tasks.domino.error.ErrorOperator`"
+
+    Examples:
+
+        ```yml
+        id: example
+        type: error
+        inputs:
+          message: "This is an error message."
+          soft_fail: False
+        ```
+    """
 
     type: Literal["error"] = "error"
     inputs: ErrorInput = Field(
@@ -61,10 +85,22 @@ class ErrorTask(BaseOperatorTask):
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
     ) -> BaseOperatorOrTaskGroup:
+        """Build an Airflow ErrorOperator object.
+
+         Args:
+            dag (DAG): An Airflow DAG object.
+            build_context (BuildContext):
+                A Context data that was created from the DAG Factory object.
+            task_group (TaskGroup, optional): An Airflow TaskGroup object
+                if this task build under the task group.
+
+        Returns:
+            BaseOperatorOrTaskGroup: An Airflow ErrorOperator object.
+        """
         return ErrorOperator(
-            task_id=self.id,
             dag=dag,
             task_group=task_group,
             message=self.inputs.message,
             soft_fail=self.inputs.soft_fail,
+            **self.base_op_kwargs(build_context=build_context),
         )

@@ -2,40 +2,67 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Any, Literal
 
-from airflow import DAG
-from airflow.sdk import TaskGroup
-from pydantic import Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from ...models.__types import BaseOperatorOrTaskGroup
-from ...models.context import BuildContext
+from ...models.builder import DominoBuilderMixin
 from ...models.task import BaseOperatorTask
 
 if TYPE_CHECKING:
-    from airflow.sdk.bases.operator import BaseOperator
+    from airflow.sdk.definitions.dag import DAG
+    from airflow.sdk.definitions.taskgroup import TaskGroup
+
+    from ...models.context import BuildContext
+
+
+class OperatorTaskKwargs(BaseModel, DominoBuilderMixin):
+    """Operator task kwargs."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    airflow_operator: str = Field(
+        ...,
+        description="The Airflow operator name to be executed in Operator task.",
+    )
+    op_kwargs: dict[str, Any] = Field(
+        default_factory=dict,
+        description="A dictionary of keyword arguments to pass to the Airflow operator.",
+    )
+
+    def build(self, build_context: BuildContext) -> dict[str, Any]:
+        """Build a dictionary of keyword arguments for the Airflow Operator.
+
+        Args:
+            build_context (BuildContext):
+                A Context data that was created from the DAG Factory object.
+
+        Returns:
+            dict[str, Any]: A dictionary of keyword arguments to pass to the
+                Operator task that was generated from the model dumping method
+                excluded ``airflow_operator``.
+        """
+        return self.model_dump(exclude={"airflow_operator"})
 
 
 class OperatorTask(BaseOperatorTask):
-    """Operator Task.
+    """Operator task.
 
     Examples:
 
         ```yml
         id: example
         type: operator
-        airflow_operator: operator_name
         inputs:
-          operator_param_01: value_01
-          operator_param_02: value_02
+          airflow_operator: operator_name
+          op_kwargs:
+            param_01: value_01
+            param_02: value_02
         ```
     """
 
     type: Literal["operator"] = "operator"
-    airflow_operator: str = Field(
+    inputs: OperatorTaskKwargs = Field(
         ...,
-        description="The Airflow operator name to be executed in Operator task.",
-    )
-    inputs: dict[str, Any] = Field(
-        default_factory=dict,
         description="The input parameters for the Airflow operator.",
     )
 
@@ -45,18 +72,29 @@ class OperatorTask(BaseOperatorTask):
         build_context: BuildContext,
         task_group: TaskGroup | None = None,
     ) -> BaseOperatorOrTaskGroup:
-        airflow_operators: dict[str, type[BaseOperator]] = build_context[
-            "airflow_operators"
-        ]
-        if self.airflow_operator not in airflow_operators:
+        """Build an Airflow Operator object.
+
+         Args:
+            dag (DAG): An Airflow DAG object.
+            build_context (BuildContext):
+                A Context data that was created from the DAG Factory object.
+            task_group (TaskGroup, optional): An Airflow TaskGroup object
+                if this task build under the task group.
+
+        Returns:
+            BaseOperatorOrTaskGroup: An Airflow Operator object.
+        """
+        if (
+            self.inputs.airflow_operator
+            not in build_context["airflow_operators"]
+        ):
             raise ValueError(
                 f"Operator need to pass to `operators` argument, "
-                f"{self.airflow_operator}, first."
+                f"{self.inputs.airflow_operator}, first."
             )
-        op: type[BaseOperator] = airflow_operators[self.airflow_operator]
-        return op(
+        return build_context["airflow_operators"][self.inputs.airflow_operator](
             dag=dag,
             task_group=task_group,
-            **self.inputs,
+            **self.inputs.build(build_context=build_context),
             **self.base_op_kwargs(build_context=build_context),
         )
