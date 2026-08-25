@@ -89,10 +89,7 @@ def dag(test_path: Path) -> DAG:
 
 @pytest.fixture(autouse=True)
 def setup_airflow_dags_path(dags_path: Path) -> Iterator[None]:
-    with patch(
-        "domino.utils.airflow_utils.get_dags_path",
-        return_value=dags_path,
-    ):
+    with patch("domino.utils.get_dags_path", return_value=dags_path):
         yield
 
 

@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 
 from domino.renderer import JinjaRenderer
-from domino.utils.dotdict import DotDict
+from domino.utils import DotDict
 
 
 @pytest.fixture(scope="function")

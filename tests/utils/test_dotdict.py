@@ -1,6 +1,6 @@
 import pytest
 
-from domino.utils.dotdict import DotDict
+from domino.utils import DotDict
 
 
 class TestDotDict:

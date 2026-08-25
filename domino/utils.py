@@ -1,4 +1,116 @@
+from __future__ import annotations
+
+import os
+import uuid
+from datetime import datetime, timedelta
+from pathlib import Path
 from typing import Any, Self
+
+from airflow.configuration import conf
+from airflow.sdk import Label
+from pendulum import DateTime
+
+from .models.context import TaskContext
+
+
+def get_bool_env(value: str) -> bool:
+    """Get the boolean value from the environment variable.
+
+    Args:
+        value (str): The environment variable name.
+
+    Returns:
+        bool: The boolean value from the environment variable.
+    """
+    return os.getenv(value, "").strip().lower() in {"true", "yes", "1", "y"}
+
+
+def int2seconds(value: int | None) -> timedelta | None:
+    """Convert integer value to seconds.
+
+    Args:
+        value (int | None): The integer value.
+
+    Returns:
+        timedelta | None: The converted value in seconds.
+    """
+    if value is None:
+        return None
+
+    return timedelta(seconds=int(value))
+
+
+def get_airflow_version() -> tuple[int, int, int]:
+    """Get the Airflow version as a tuple of integers.
+
+    Returns:
+        tuple[int, int, int]: The Airflow version.
+    """
+    from airflow import version
+
+    versions = list(map(int, version.split(".")))
+    return versions[0], versions[1], versions[2]
+
+
+def get_dags_path() -> Path | None:
+    """Get the Airflow DAGs folder path from the Airflow configuration.
+
+    Returns:
+        Path | None: The Airflow DAGs folder path.
+    """
+    path_str: str | None = conf.get("core", "dags_folder", fallback=None)
+    if path_str:
+        return Path(path_str)
+    return None
+
+
+def set_upstream_and_teardown(
+    tasks: dict[str, TaskContext],
+    label_seperator: str = "::",
+) -> None:  # NOSONAR
+    """Set Upstream and Teardown Task for each tasks in mapping.
+
+    Args:
+        tasks (dict[str, TaskContext]): A mapping of task ID and TaskContext dict
+            object.
+        label_seperator (str, optional): A separator string for the task ID
+            to split the label from the task ID. Defaults to "::".
+    """
+    for task in tasks:
+        task_context: TaskContext = tasks[task]
+
+        # Set upstream task if it is defined in the template.
+        if upstream := task_context["upstreams"]:
+            for t in upstream:
+                try:
+                    if label_seperator in t:
+                        t, label = t.split(
+                            label_seperator,
+                            maxsplit=1,
+                        )
+                        if label:
+                            task_context["task"].set_upstream(
+                                tasks[t]["task"], edge_modifier=Label(label)
+                            )
+                            continue
+
+                    # Default case without edge modifier
+                    task_context["task"].set_upstream(tasks[t]["task"])
+                except KeyError as e:
+                    raise KeyError(
+                        f"Task ids, {e}, does not found from the template.\n"
+                        f"The current task key: {list(tasks.keys())}"
+                    ) from e
+        # Set setup & teardown task if it is defined in the template.
+        if teardown := task_context.get("teardown"):
+            try:
+                task_context["task"].as_teardown(setups=tasks[teardown]["task"])
+            except KeyError as e:
+                raise KeyError(
+                    f"Setups task id, {e}, does not found from the template.\n"
+                    f"The current task key: {list(tasks.keys())}"
+                ) from e
+
 
 # Sentinel used instead of a two-step `key in d` + `d[key]` (2 hash lookups)
 # so every traversal step costs exactly one hash lookup instead of two.
@@ -253,3 +365,121 @@ class DotDict(dict):
         if is_safe or has_default:
             return default if has_default else None
         raise KeyError(key)
+
+
+def to_bkk(dt: DateTime | None) -> DateTime | None:
+    """Convert pendulum.DateTime object to Asia/Bangkok timezone.
+
+    Args:
+        dt (DateTime | None): A pendulum.DateTime object.
+
+    Returns:
+        DateTime | None: A pendulum.DateTime object with Asia/Bangkok timezone
+            or None if dt is None.
+    """
+    if dt is None:
+        return None
+    return dt.in_timezone("Asia/Bangkok")
+
+
+def to_utc(dt: DateTime | None) -> DateTime | None:
+    """Convert pendulum.DateTime object to UTC timezone.
+
+    Args:
+        dt (DateTime | None): A pendulum.DateTime object.
+
+    Returns:
+        DateTime | None: A pendulum.DateTime object with UTC timezone or
+            None if dt is None.
+    """
+    if dt is None:
+        return None
+    return dt.in_timezone("UTC")
+
+
+def date_add(
+    dt: DateTime | None,
+    years: int = 0,
+    months: int = 0,
+    weeks: int = 0,
+    days: int = 0,
+    hours: int = 0,
+    minutes: int = 0,
+    seconds: float = 0,
+    microseconds: int = 0,
+) -> DateTime | None:
+    """Add time delta to pendulum.DateTime object.
+
+    Args:
+        dt (DateTime | None): A pendulum.DateTime object.
+        years (int): Number of years to add.
+        months (int): Number of months to add.
+        weeks (int): Number of weeks to add.
+        days (int): Number of days to add.
+        hours (int): Number of hours to add.
+        minutes (int): Number of minutes to add.
+        seconds (float): Number of seconds to add.
+        microseconds (int): Number of microseconds to add.
+
+    Returns:
+        DateTime | None: A pendulum.DateTime object with added one day or
+            None if dt is None.
+    """
+    if dt is None:
+        return None
+    return dt.add(
+        years=years,
+        months=months,
+        weeks=weeks,
+        days=days,
+        hours=hours,
+        minutes=minutes,
+        seconds=seconds,
+        microseconds=microseconds,
+    )
+
+
+def change_tz(dt: DateTime | None, tz: str = "UTC") -> DateTime | None:
+    """Change timezone to pendulum.DateTime object.
+
+    Args:
+        dt (DateTime | None): A pendulum.DateTime object.
+        tz (str): A timezone name that use to change.
+
+    Returns:
+        DateTime | None: A pendulum.DateTime object with changed timezone or
+            None if dt is None.
+    """
+    if dt is None:
+        return None
+    return dt.in_timezone(tz)
+
+
+def format_dt(
+    dt: datetime | DateTime | None, fmt: str = "%Y-%m-%d %H:00:00%z"
+) -> str | None:
+    """Format string value on pendulum.DateTime or datetime object.
+
+    Args:
+        dt (datetime | DateTime | None): A datetime or pendulum.DateTime object.
+        fmt (str): A format string that use with strftime method.
+
+    Returns:
+        str | None: A formatted string value or None if dt is None.
+    """
+    if dt is None:
+        return None
+    return dt.strftime(fmt)
+
+
+def random_str(n: int = 6) -> str:
+    """Random string charactor with specific length.
+
+    Args:
+        n (int): A length of random string.
+
+    Returns:
+        str: A random string charactor that generated from UUID4 and cut to n
+            length.
+    """
+    return uuid.uuid4().hex[:n].lower()
