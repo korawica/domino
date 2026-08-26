@@ -13,7 +13,6 @@ tasks:
     upstream: [<upstream-task-id>]
     trigger_rule: <trigger-rule>
 
-    uses: <task-implemented-tool>
     inputs:
       <input-1-name>: <input-1-value>
       <input-2-name>: <input-2-value>
@@ -45,8 +44,12 @@ tasks:
 ```yml
 tasks:
   - id: <task-id>
-    type: <sensor-type>
-
+    type: sensor
+    inputs:
+      airflow_operator: <airflow-operator-name>
+      op_kwargs:
+        <arg-1-name>: <arg-1-value>
+        <arg-2-name>: <arg-2-value>
     mode: poke
     poke_interval: 60
 ```

@@ -1,14 +1,12 @@
 from __future__ import annotations
 
-from typing import Literal
-
-from pydantic import BaseModel, Field
-
-PriorityType = Literal["p1", "p2", "p3", "p4", "p5"]
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class Label(BaseModel):
-    """Label Model."""
+    """Label model."""
+
+    model_config = ConfigDict(extra="allow")
 
     team: str | None = Field(
         default=None,
@@ -18,14 +16,33 @@ class Label(BaseModel):
         default=None,
         description="The system responsible for the task.",
     )
-    priority: PriorityType | None = Field(
+    priority: str | None = Field(
         default=None,
         description="The priority of the task.",
     )
 
+    def merge_label(self, other: Label) -> Label:
+        """Merge two Label model.
+
+        Args
+            other (Label): Another Label model to merge with the current one.
+
+        Returns:
+            Label: A new Label model that is the result of merging the current
+                Label model with the other Label model.
+        """
+        return Label(
+            **(
+                self.model_dump(exclude_none=True)
+                | other.model_dump(exclude_none=True)
+            )
+        )
+
     def make_tags(self) -> set[str]:
         """Make tags from labels."""
         return {
-            f"{key}:{value}"
-            for key, value in self.model_dump(exclude_none=True).items()
+            f"{key}:{str(value)}"
+            for key, value in (
+                self.model_dump(exclude_none=True) | self.__pydantic_extra__
+            ).items()
         }

@@ -6,6 +6,8 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import Any
 
+from airflow.sdk.definitions.variable import Variable as AirflowVariable
+from airflow.sdk.exceptions import AirflowRuntimeError
 from yaml import safe_load
 from yaml.constructor import ConstructorError
 from yaml.parser import ParserError
@@ -43,13 +45,14 @@ def extract_yaml(file: Path) -> tuple[str, dict[str, Any] | list[Any]]:
 
 def read_yaml_conf(  # NOSONAR
     path: Path,
-    id_key: str,
     conf_type: tuple[str, ...],
     prefix_pattern: str,
+    id_key: str | None = None,
     only_one_conf: bool = False,
     pre_validate: Callable | None = None,
     include_raw_content: bool = True,
     max_threads: int = 2,
+    recursive: bool = True,
 ) -> list[dict[str, Any]]:
     """Read Conf data from the path argument.
 
@@ -99,7 +102,9 @@ def read_yaml_conf(  # NOSONAR
             )
             return None
 
-        if id_key not in data or data.get("type", "NOTSET") not in conf_type:
+        if (id_key and id_key not in data) or data.get(
+            "type", "NOTSET"
+        ) not in conf_type:
             logger.warning(
                 f"⚠️ Skip template file that does not contain valid type or "
                 f"ID key, file: {file}."
@@ -119,7 +124,8 @@ def read_yaml_conf(  # NOSONAR
         if include_raw_content:
             model["__raw_data"] = raw_data
 
-        logger.info(f"⚙️ Load Conf ID: {model[id_key]!r}")
+        if id_key:
+            logger.info(f"⚙️ Load Conf ID: {model[id_key]!r}")
 
         if pre_validate is not None:
             try:
@@ -129,9 +135,10 @@ def read_yaml_conf(  # NOSONAR
 
         return model
 
+    glob_func = path.rglob if recursive else path.glob
     files: list[Path] = [
         f
-        for f in path.rglob(f"{prefix_pattern}.y*ml")
+        for f in glob_func(f"{prefix_pattern}.y*ml")  # noqa
         if f.name.endswith((".yml", ".yaml"))
     ]
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
@@ -143,7 +150,7 @@ def read_yaml_conf(  # NOSONAR
         logger.warning(
             "⚠️ Read config file from this template path does not exists"
         )
-    if only_one_conf and len(conf) > 1:
+    elif only_one_conf and len(conf) > 1:
         logger.error(
             f"🚨 Conf data should contain only one per folder:\n{conf}."
         )
@@ -180,5 +187,63 @@ class DagLoader:
                     key=lambda x: x.get("__filename", "__old"),
                     reverse=True,
                 )
-            )
+            ),
+            {},
         )
+
+
+def read_variables(path: Path) -> dict[str, Any]:
+    """Read variables file and return the data that already read via YAML
+    parser.
+
+    Args:
+        path (Path): A path that use for searching config file.
+    """
+    conf: list[dict[str, Any]] = read_yaml_conf(
+        path=path,
+        conf_type=("variable",),
+        prefix_pattern="variable",
+        only_one_conf=False,
+        recursive=False,
+    )
+    return next(
+        iter(
+            sorted(
+                conf,
+                key=lambda x: x.get("__filename", "__old"),
+                reverse=True,
+            )
+        ),
+        {},
+    )
+
+
+def read_airflow_variables(name: str) -> dict[str, Any]:
+    """Read Airflow Variable and return the data that already read via YAML
+    parser.
+
+    Examples:
+
+        ```text
+        # Airflow Variable: my_variable
+        key1: value1
+        key2:
+          nested_key:
+            value: [1, 2, 3]
+        ```
+    """
+    airflow_vars: dict[str, Any] = {}
+    try:
+        raw_var: str = AirflowVariable.get(name, deserialize_json=False)
+        logger.debug("Pull Variable from Airflow: %s", name)
+        logger.debug("Raw Variable Content: %s", raw_var)
+        airflow_vars: dict[str, Any] = safe_load(raw_var)
+    except AirflowRuntimeError as err:  # pragma: no cov
+        # NOTE: Raise from Airflow version >= 3.0.0 instead of KeyError.
+        logger.error(f"🚨 Airflow 3.0 Variable Error: {err}")
+    except Exception as err:  # pragma: no cov
+        logger.error(
+            "🚨 Pull Variable from Airflow get some unexpected error: %s",
+            err,
+        )
+    return airflow_vars

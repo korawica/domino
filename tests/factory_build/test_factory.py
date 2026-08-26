@@ -25,10 +25,24 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
                   - id: start
                     type: empty
 
+                  - id: process
+                    type: group
+                    desc: "A group of tasks for processing data."
+                    upstreams: [start]
+                    tasks:
+                      - id: extract
+                        type: empty
+                      - id: transform
+                        type: empty
+                        upstreams: [extract]
+                      - id: load
+                        type: empty
+                        upstreams: [transform]
+
                   - id: end
                     type: empty
-                    upstreams: [start]
-                    trigger_rule: all_success
+                    upstreams: [process]
+                    trigger_rule: all_done
                 """.lstrip("\n")
             )
         )
@@ -45,6 +59,22 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
         )
 
     yield mock_dag_path
+
+    with (mock_dag_path / "variables.yml").open(
+        mode="w", encoding="utf-8"
+    ) as f:
+        f.write(
+            dedent(
+                """
+                id: variable
+                stages:
+                  dev:
+                    glob_project_id: "dev_project"
+                  prod:
+                    glob_project_id: "prod_project"
+                """.lstrip("\n")
+            )
+        )
 
     shutil.rmtree(mock_dag_path, ignore_errors=True)
 

@@ -4,6 +4,7 @@ from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
 
+import jinja2
 import pendulum
 from airflow import DAG
 from pendulum import DateTime, parse
@@ -160,24 +161,36 @@ class Dag(Templater):
                 "owners",
                 "labels",
                 "tags",
+                "dagrun_timeout_sec",
             }
             | (exclude or set()),
             exclude_unset=True,
         )
-        kws["dagrun_timeout"] = int2seconds(kws.pop("dagrun_timeout_sec", None))
-        kws["owner_links"] = {owner: owner for owner in kws.pop("owners", [])}
         return kws
 
     def build(
         self,
         build_context: BuildContext,
+        *,
+        template_searchpath: list[str] | None = None,
+        user_defined_macros: dict[str, Any] | None = None,
+        user_defined_filters: dict[str, Any] | None = None,
+        jinja_environment_kwargs: dict[str, Any] | None = None,
     ) -> DAG:
         """Build the Airflow DAG from the DAG model.
 
         Args:
             build_context (BuildContext): The context for building the DAG.
+            template_searchpath (list[str], optional): A list of paths to search
+                for Jinja templates.
+            user_defined_macros (dict[str, Any], optional): A dictionary
+                of user-defined macros to be used in the DAG.
+            user_defined_filters (dict[str, Any], optional): A dictionary
+                of user-defined filters to be used in the DAG.
+            jinja_environment_kwargs (dict[str, Any], optional): A dictionary
+                of keyword arguments to be passed to the Jinja environment.
         """
-        label: Label = build_context["label"]
+        label: Label = build_context["label"].merge_label(self.labels)
 
         # Start create Airflow's DAG instance
         dag = DAG(
@@ -185,9 +198,19 @@ class Dag(Templater):
             doc_md=self.docs,
             description=self.desc,
             tags=set(self.tags) | label.make_tags(),
+            owner_links={owner: f"mailto:{owner}" for owner in self.owners},
             default_args=(
                 {"owner": ",".join(self.owners)} if self.owners else {}
             ),
+            dagrun_timeout=int2seconds(self.dagrun_timeout_sec),
+            is_paused_upon_creation=True,
+            # Jinja template parameters
+            template_searchpath=(template_searchpath or []),
+            template_undefined=jinja2.StrictUndefined,
+            user_defined_macros=user_defined_macros,
+            user_defined_filters=user_defined_filters,
+            jinja_environment_kwargs=jinja_environment_kwargs,
+            render_template_as_native_obj=True,
             **self.dag_kwargs(),
         )
 

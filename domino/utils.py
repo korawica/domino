@@ -1,16 +1,22 @@
 from __future__ import annotations
 
+import logging
 import os
+import time
 import uuid
 from datetime import datetime, timedelta
+from functools import wraps
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Final, Self
 
 from airflow.configuration import conf
 from airflow.sdk import Label
 from pendulum import DateTime
 
+from .const import VAR_DOMINO_ENV
 from .models.context import TaskContext
+
+logger = logging.getLogger("domino.utils")
 
 
 def get_bool_env(value: str) -> bool:
@@ -38,6 +44,47 @@ def int2seconds(value: int | None) -> timedelta | None:
         return None
 
     return timedelta(seconds=int(value))
+
+
+ENV_ALIASES: Final[dict[str, str]] = {
+    "develop": "dev",
+    "development": "dev",
+    "prd": "prod",
+    "production": "prod",
+}
+
+
+def get_current_env() -> str:
+    """Get the current environment value from the environment variable with
+    the key, `VAR_DOMINO_ENV`.
+
+    Returns:
+        str: An environment value. It will return the `dev` value as default
+            if the environment variable does not set.
+    """
+    env: str = os.getenv(VAR_DOMINO_ENV, "dev").lower()
+    if not env:
+        logging.warning(
+            f"The ``{VAR_DOMINO_ENV}`` does not set on env variable."
+        )
+        return "dev"
+
+    # NOTE: Handle alias names for production environment.
+    if env in ENV_ALIASES:
+        logging.warning(
+            f"⚠️ The current environment that set, {env!r}, is an alias name."
+        )
+        logging.warning("⚠️ It will start convert to the prod environment.")
+        env = ENV_ALIASES[env]
+
+    if env not in ("sandbox", "dev", "staging", "prod"):
+        logging.critical(
+            f"🚨 The current environment that set, {env!r}, does not support yet."
+        )
+        logging.warning("⚠️ It will start convert to the sandbox environment.")
+        return "dev"
+
+    return env
 
 
 def get_airflow_version() -> tuple[int, int, int]:
@@ -483,3 +530,54 @@ def random_str(n: int = 6) -> str:
             length.
     """
     return uuid.uuid4().hex[:n].lower()
+
+
+def cached_method(ttl: float | None = None):
+    """Decorator to cache method results based on arguments.
+    Garbage collected with the instance.
+
+    Args:
+        ttl (float | None): Time-to-live for cache entries in seconds.
+            If None, cache entries do not expire.
+    """
+
+    def decorator(func):
+        cache_name: str = f"_{func.__name__}_cache"
+
+        @wraps(func)
+        def wrapper(self, *args, **kwargs):
+            key = (args, tuple(kwargs.items()))
+            now = time.time()
+
+            if (cache := getattr(self, cache_name, None)) is None:
+                setattr(self, cache_name, cache := {})
+
+            value, timestamp = cache.get(key, (None, None))
+            if value is not None and (ttl is None or now - timestamp < ttl):
+                return value
+            result = func(self, *args, **kwargs)
+            cache[key] = (result, now)
+            return result
+
+        def is_cached(self, *args, **kwargs) -> bool:
+            key = (args, tuple(kwargs.items()))
+            now = time.time()
+            cache = getattr(self, cache_name, None)
+            if cache is None or key not in cache:
+                return False
+            _, timestamp = cache[key]
+            return ttl is None or now - timestamp < ttl
+
+        def get_cached_dict(self) -> dict:
+            cache = getattr(self, cache_name, {})
+            now = time.time()
+            if ttl is None:
+                return {k: v[0] for k, v in cache.items()}
+            return {k: v[0] for k, v in cache.items() if now - v[1] < ttl}
+
+        wrapper.is_cached = is_cached
+        wrapper.get_cached_dict = get_cached_dict
+
+        return wrapper
+
+    return decorator
