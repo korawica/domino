@@ -70,6 +70,8 @@ def read_yaml_conf(  # NOSONAR
         include_raw_content (bool, default True): Add the raw data or not.
         max_threads (int, default 2): A maximum number of threads for reading
             the config files. It should be greater than 0.
+        recursive (bool, default True): Whether recursively read the config
+            files or not.
 
     Raises:
         ValidationError:
@@ -141,6 +143,7 @@ def read_yaml_conf(  # NOSONAR
         for f in glob_func(f"{prefix_pattern}.y*ml")  # noqa
         if f.name.endswith((".yml", ".yaml"))
     ]
+
     with ThreadPoolExecutor(max_workers=max_threads) as executor:
         conf: list[dict[str, Any]] = [
             r for r in executor.map(_extract, files) if r is not None
@@ -202,7 +205,7 @@ def read_variables(path: Path) -> dict[str, Any]:
     conf: list[dict[str, Any]] = read_yaml_conf(
         path=path,
         conf_type=("variable",),
-        prefix_pattern="variable",
+        prefix_pattern="variables",
         only_one_conf=False,
         recursive=False,
     )

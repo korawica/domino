@@ -25,6 +25,7 @@ class Dag(Templater):
     """DAG model."""
 
     model_config = ConfigDict(
+        extra="forbid",
         # Allow to accept pendulum.DateTime type
         arbitrary_types_allowed=True,
     )
@@ -172,6 +173,8 @@ class Dag(Templater):
         self,
         build_context: BuildContext,
         *,
+        on_success_callbacks: list[Any] | None = None,
+        on_failure_callbacks: list[Any] | None = None,
         template_searchpath: list[str] | None = None,
         user_defined_macros: dict[str, Any] | None = None,
         user_defined_filters: dict[str, Any] | None = None,
@@ -181,6 +184,10 @@ class Dag(Templater):
 
         Args:
             build_context (BuildContext): The context for building the DAG.
+            on_success_callbacks (list[Any], optional): A list of callbacks
+                to be executed on successful DAG runs.
+            on_failure_callbacks (list[Any], optional): A list of callbacks
+                to be executed on failed DAG runs.
             template_searchpath (list[str], optional): A list of paths to search
                 for Jinja templates.
             user_defined_macros (dict[str, Any], optional): A dictionary
@@ -202,6 +209,8 @@ class Dag(Templater):
             default_args=(
                 {"owner": ",".join(self.owners)} if self.owners else {}
             ),
+            on_success_callback=on_success_callbacks,
+            on_failure_callback=on_failure_callbacks,
             dagrun_timeout=int2seconds(self.dagrun_timeout_sec),
             is_paused_upon_creation=True,
             # Jinja template parameters

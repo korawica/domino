@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from collections.abc import Callable
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Final
 
+from airflow.sdk.definitions._internal.templater import (  # noqa
+    FILTERS as AIRFLOW_FILTERS,
+)
 from pydantic import ValidationError
 
 from .const import VAR_DOMINO_UNITTEST_MODE
@@ -14,7 +18,18 @@ from .models.context import BuildContext
 from .models.dag import Dag
 from .models.label import Label
 from .renderer import JinjaRenderer
-from .utils import DotDict, cached_method, get_bool_env, get_dags_path
+from .utils import (
+    DotDict,
+    cached_method,
+    change_tz,
+    date_add,
+    format_dt,
+    get_bool_env,
+    get_dags_path,
+    remove_system_fields,
+    to_bkk,
+    to_utc,
+)
 
 if TYPE_CHECKING:
     from airflow import DAG
@@ -23,6 +38,16 @@ if TYPE_CHECKING:
     from .models.task import BaseTask
 
 logger = logging.getLogger("domino")
+
+
+FILTERS: Final[dict[str, Callable]] = {
+    "tz": change_tz,
+    "fmt": format_dt,
+    "date_add": date_add,
+    "bkk": to_bkk,
+    "utc": to_utc,
+    **AIRFLOW_FILTERS,
+}
 
 
 class DagFactory:
@@ -34,8 +59,8 @@ class DagFactory:
         "is_under_dags_dir",
         "loader",
         "conf",
-        "on_success_callback",
-        "on_failure_callback",
+        "on_success_callbacks",
+        "on_failure_callbacks",
         "python_callables",
         "task_objects",
         "airflow_operators",
@@ -53,8 +78,8 @@ class DagFactory:
         *,
         use_airflow_variable: bool = False,
         # Backend callbacks
-        on_success_callback: list[Any] | None = None,
-        on_failure_callback: list[Any] | None = None,
+        on_success_callbacks: list[Any] | None = None,
+        on_failure_callbacks: list[Any] | None = None,
         on_task_callbacks: dict[str, Any] | None = None,
         # Backend assets
         python_callables: dict[str, Callable[..., None]] | None = None,
@@ -75,8 +100,8 @@ class DagFactory:
         self.use_airflow_variable = use_airflow_variable
 
         # Backend DAG callbacks
-        self.on_success_callback = on_success_callback or []
-        self.on_failure_callback = on_failure_callback or []
+        self.on_success_callbacks = on_success_callbacks or []
+        self.on_failure_callbacks = on_failure_callbacks or []
 
         # Backend task callbacks for specific tasks.
         self.on_task_callbacks = on_task_callbacks or {}
@@ -87,7 +112,7 @@ class DagFactory:
         self.airflow_operators = airflow_operators or {}
 
         self.user_defined_macros = user_defined_macros or {}
-        self.user_defined_filters = user_defined_filters or {}
+        self.user_defined_filters = FILTERS | (user_defined_filters or {})
 
         self.template_searchpath: list[str] = [
             # NOTE: Remove resolve for fixing GitSync change hash path.
@@ -108,6 +133,9 @@ class DagFactory:
 
         Args:
             path (Path | str): Path to the DAG template folder.
+
+        Returns:
+            Path: A validated path that is under the Airflow ``dags_folder``.
         """
         path = path if isinstance(path, Path) else Path(path)
 
@@ -143,27 +171,22 @@ class DagFactory:
             dict[str, Any]: A variable mapping.
         """
         from .loader import read_airflow_variables
-
-        # from .models.global_variable import pull_global_vars
         from .models.variable import Variable
         from .utils import get_current_env
 
         env: str = env or get_current_env()
-
-        # read Airflow variable
-        if self.use_airflow_variable:
-            airflow_vars = read_airflow_variables(name=name)
-        else:
-            airflow_vars = {}
-
         return (
             Variable.global_variables(
-                self.path,
+                path=self.path,
                 stop_path=get_dags_path(),
                 env=env,
             )
             | Variable.pull_stage(path=self.path, env=env)
-            | airflow_vars
+            | (
+                read_airflow_variables(name=name)
+                if self.use_airflow_variable
+                else {}
+            )
         )
 
     @property
@@ -171,7 +194,7 @@ class DagFactory:
         """Return the DAG model from the DAG template."""
         dag: Dag | None = self.conf
         if dag is None:
-            data: dict[str, Any] = self.loader.read_dag()
+            data: dict[str, Any] = remove_system_fields(self.loader.read_dag())
             name: str = data["id"]
 
             # ???
@@ -215,10 +238,12 @@ class DagFactory:
         """Build Airflow DAG object from the DAG model.
 
         Args:
-            user_defined_macros (dict[str, Callable[..., Any]] | None): A dictionary
-                of user-defined macros to be used in the DAG.
-            user_defined_filters (dict[str, Callable[..., Any]] | None): A dictionary
-                of user-defined filters to be used in the DAG.
+            user_defined_macros (dict[str, Callable[..., Any]] | None):
+                An override dictionary of user-defined macros to be used in
+                the DAG.
+            user_defined_filters (dict[str, Callable[..., Any]] | None):
+                An override dictionary of user-defined filters to be used in
+                the DAG.
 
         Returns:
             DAG: An Airflow DAG instance.
@@ -226,7 +251,10 @@ class DagFactory:
         renderer = self.jinja_renderer
         user_defined_macros: dict[str, Any] = (
             self.user_defined_macros
-            | {"vars": DotDict(self.pull_vars(name=self.dag.id)).get_raise}
+            | {
+                "vars": DotDict(self.pull_vars(name=self.dag.id)).get_raise,
+                "env": os.getenv,
+            }
             | (user_defined_macros or {})
         )
         renderer.env.globals.update(user_defined_macros)
@@ -243,6 +271,8 @@ class DagFactory:
         }
         return self.dag.build(
             build_context=build_context,
+            on_success_callbacks=self.on_success_callbacks,
+            on_failure_callbacks=self.on_failure_callbacks,
             template_searchpath=None,
             user_defined_macros=user_defined_macros,
             user_defined_filters=user_defined_filters,
@@ -278,7 +308,11 @@ class DagFactory:
         )
         gb[dag.dag_id] = dag
 
-    def parse(self) -> dict[str, Any]:
+    def parse(
+        self,
+        # user_defined_macros: dict[str, Callable[..., Any]] | None = None,
+        # user_defined_filters: dict[str, Callable[..., Any]] | None = None,
+    ) -> dict[str, Any]:
         """Pre parsing the DAG template.
 
         Returns:

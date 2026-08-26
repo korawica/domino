@@ -46,6 +46,15 @@ def int2seconds(value: int | None) -> timedelta | None:
     return timedelta(seconds=int(value))
 
 
+def remove_system_fields(data: dict[str, Any]) -> dict[str, Any]:
+    """Remove system fields from the dictionary.
+
+    Args:
+        data (dict[str, Any]): A dictionary to remove system fields.
+    """
+    return {k: v for k, v in data.items() if not k.startswith("__")}
+
+
 ENV_ALIASES: Final[dict[str, str]] = {
     "develop": "dev",
     "development": "dev",

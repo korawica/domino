@@ -6,6 +6,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from ..utils import remove_system_fields
+
 logger = logging.getLogger("domino.variable")
 
 
@@ -39,9 +41,9 @@ class Variable(BaseModel):
         from ..loader import read_variables
         from ..utils import get_current_env
 
-        return cls.model_validate(obj=read_variables(path=path)).stages.get(
-            env or get_current_env(), {}
-        )
+        return cls.model_validate(
+            obj=remove_system_fields(read_variables(path=path))
+        ).stages.get(env or get_current_env(), {})
 
     @classmethod
     def global_variables(
@@ -100,7 +102,7 @@ class Variable(BaseModel):
             try:
                 logger.debug("🔍 Try to pull Global Variable at: %s", p)
                 data: dict[str, Any] = Variable.pull_stage(path=p, env=env)
-            except (OSError, ValueError, TypeError):
+            except (OSError, ValueError, TypeError) as err:
                 # NOTE: Ignore these exceptions and continue to the upper path.
                 #  - OSError: Global variable file does not exist or permission.
                 #  - ValueError: Global variable file has empty content.
@@ -110,6 +112,7 @@ class Variable(BaseModel):
                     "the content excluded parser at template path: %s",
                     p,
                 )
+                logger.debug("⏭️ Exception: %s", err)
                 data = {}
 
             # WARNING: Later variables will override earlier ones.

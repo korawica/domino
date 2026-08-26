@@ -29,6 +29,9 @@ os.environ["AIRFLOW_ENV"] = "dev"
 os.environ["AIRFLOW__CORE__UNIT_TEST_MODE"] = "true"
 os.environ["AIRFLOW__API__BASE_URL"] = "http://localhost:8080"
 
+os.environ["DOMINO_ENV"] = "dev"
+os.environ["DOMINO_UNITTEST_MODE"] = "true"
+
 from domino.models.context import BuildContext  # noqa
 from domino.models.label import Label  # noqa
 
@@ -59,16 +62,18 @@ def setup_global_variables(dags_path: Path) -> Iterator[None]:
         f.write(
             dedent(
                 """
-                id: global_variable_on_dags
                 type: variable
                 stages:
                   dev:
-                    global_var_key: global_var_value
+                    glob_project_id: "glob_dev_project"
+                    glob_location: "glob_dev_location"
                   prod:
-                    global_var_key: global_var_value
+                    glob_project_id: "glob_prod_project"
+                    glob_location: "glob_prod_location"
                 """
             )
         )
+
     yield
 
 

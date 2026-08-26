@@ -58,15 +58,13 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
             )
         )
 
-    yield mock_dag_path
-
     with (mock_dag_path / "variables.yml").open(
         mode="w", encoding="utf-8"
     ) as f:
         f.write(
             dedent(
                 """
-                id: variable
+                type: variable
                 stages:
                   dev:
                     glob_project_id: "dev_project"
@@ -75,6 +73,8 @@ def mock_dag_path(dags_path: Path) -> Iterator[Path]:
                 """.lstrip("\n")
             )
         )
+
+    yield mock_dag_path
 
     shutil.rmtree(mock_dag_path, ignore_errors=True)
 
@@ -86,3 +86,9 @@ def test_dag_factory_build(mock_dag_path: Path):
     assert dag.start_date is None
     assert dag.end_date is None
     assert dag.owner == "whoami@email.com"
+
+    assert "vars" in dag.user_defined_macros
+    assert dag.user_defined_macros["vars"]("glob_project_id") == "dev_project"
+    assert (
+        dag.user_defined_macros["vars"]("glob_location") == "glob_dev_location"
+    )
