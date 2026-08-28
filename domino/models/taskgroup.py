@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import os
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
-from typing import TYPE_CHECKING, Annotated, Literal, Union
+from typing import TYPE_CHECKING, Annotated, Final, Literal, Union
 
 from airflow.sdk.definitions.taskgroup import TaskGroup
 from pydantic import Field
 
-from ..const import MAX_THREADS_BUILD_TASKGROUP
+from ..const import VAR_DOMINO_MAX_THREADS_BUILD_TASKGROUP
 from ..tasks import Task
 from .builder import BaseAirflowTaskOrGroupBuilder
 
@@ -15,6 +16,10 @@ if TYPE_CHECKING:
 
     from .__types import BaseOperatorOrTaskGroup
     from .context import BuildContext
+
+MAX_THREADS_BUILD_TASKGROUP: Final[int] = int(
+    os.getenv(VAR_DOMINO_MAX_THREADS_BUILD_TASKGROUP, "5")
+)
 
 
 class Group(BaseAirflowTaskOrGroupBuilder):

@@ -161,38 +161,30 @@ def read_yaml_conf(  # NOSONAR
     return conf
 
 
-class DagLoader:
-    """DAG Loader object.
+def read_dag(path: Path) -> dict[str, Any]:
+    """Read the DAG template file and return the data that already read via
+    YAML parser.
 
-    This object using for loading the DAG template file and return the Dag model.
+    Args:
+        path (Path): A path that use for searching config file.
     """
-
-    __slots__ = ("path",)
-
-    def __init__(self, path: Path) -> None:
-        self.path = path
-
-    def read_dag(self) -> dict[str, Any]:
-        """Read the DAG template file and return the data that already read via
-        YAML parser.
-        """
-        conf: list[dict[str, Any]] = read_yaml_conf(
-            path=self.path,
-            id_key="id",
-            conf_type=("dag",),
-            prefix_pattern="dag",
-            only_one_conf=False,
-        )
-        return next(
-            iter(
-                sorted(
-                    conf,
-                    key=lambda x: x.get("__filename", "__old"),
-                    reverse=True,
-                )
-            ),
-            {},
-        )
+    conf: list[dict[str, Any]] = read_yaml_conf(
+        path=path,
+        id_key="id",
+        conf_type=("dag",),
+        prefix_pattern="dag",
+        only_one_conf=False,
+    )
+    return next(
+        iter(
+            sorted(
+                conf,
+                key=lambda x: x.get("__filename", "__old"),
+                reverse=True,
+            )
+        ),
+        {},
+    )
 
 
 def read_variables(path: Path) -> dict[str, Any]:

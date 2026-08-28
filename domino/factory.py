@@ -13,7 +13,6 @@ from airflow.sdk.definitions._internal.templater import (  # noqa
 from pydantic import ValidationError
 
 from .const import VAR_DOMINO_UNITTEST_MODE
-from .loader import DagLoader
 from .models.context import BuildContext
 from .models.dag import Dag
 from .models.label import Label
@@ -57,7 +56,6 @@ class DagFactory:
         "path",
         "use_airflow_variable",
         "is_under_dags_dir",
-        "loader",
         "conf",
         "on_success_callbacks",
         "on_failure_callbacks",
@@ -121,7 +119,6 @@ class DagFactory:
             for p in (template_searchpath or [])
         ] + [str(self.path.absolute()), str((self.path / "assets").absolute())]
 
-        self.loader = DagLoader(self.path)
         self.conf: Dag | None = None
 
         # Cache the JinjaRenderer object to avoid re-rendering the template
@@ -194,7 +191,9 @@ class DagFactory:
         """Return the DAG model from the DAG template."""
         dag: Dag | None = self.conf
         if dag is None:
-            data: dict[str, Any] = remove_system_fields(self.loader.read_dag())
+            from .loader import read_dag
+
+            data: dict[str, Any] = remove_system_fields(read_dag(self.path))
             name: str = data["id"]
 
             # ???

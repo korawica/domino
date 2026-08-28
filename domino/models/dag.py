@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import os
 from concurrent.futures import Future, ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, ClassVar, Literal, cast
+from typing import TYPE_CHECKING, Any, ClassVar, Final, Literal, cast
 
 import jinja2
 import pendulum
@@ -11,7 +12,7 @@ from pendulum import DateTime, parse
 from pydantic import ConfigDict, Field
 from pydantic.functional_validators import field_validator
 
-from ..const import MAX_THREADS_BUILD_TASK
+from ..const import VAR_DOMINO_MAX_THREADS_BUILD_TASK
 from ..utils import int2seconds, set_upstream_and_teardown
 from .label import Label
 from .taskgroup import TaskOrGroup
@@ -19,6 +20,11 @@ from .templater import Templater
 
 if TYPE_CHECKING:
     from .context import BuildContext
+
+
+MAX_THREADS_BUILD_TASK: Final[int] = int(
+    os.getenv(VAR_DOMINO_MAX_THREADS_BUILD_TASK, "5")
+)
 
 
 class Dag(Templater):

@@ -1,4 +1,3 @@
-import os
 from typing import Final
 
 VAR_DOMINO_ENV: Final[str] = "DOMINO_ENV"
@@ -7,12 +6,3 @@ VAR_DOMINO_MAX_THREADS_BUILD_TASK: Final[str] = "DOMINO_MAX_THREADS_BUILD_TASK"
 VAR_DOMINO_MAX_THREADS_BUILD_TASKGROUP: Final[str] = (
     "DOMINO_MAX_THREADS_BUILD_TASKGROUP"
 )
-
-MAX_THREADS_BUILD_TASK: Final[int] = int(
-    os.getenv(VAR_DOMINO_MAX_THREADS_BUILD_TASK, "5")
-)
-MAX_THREADS_BUILD_TASKGROUP: Final[int] = int(
-    os.getenv(VAR_DOMINO_MAX_THREADS_BUILD_TASKGROUP, "5")
-)
-
-NOTSET: Final[str] = "__notset__"
