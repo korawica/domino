@@ -45,6 +45,7 @@ def extract_yaml(file: Path) -> tuple[str, dict[str, Any] | list[Any]]:
 
 def read_yaml_conf(  # NOSONAR
     path: Path,
+    *,
     conf_type: tuple[str, ...],
     prefix_pattern: str,
     id_key: str | None = None,

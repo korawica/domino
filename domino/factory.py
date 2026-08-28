@@ -67,6 +67,7 @@ class DagFactory:
         "user_defined_filters",
         "template_searchpath",
         "_jinja_renderer",
+        # cached variable from `pull_vars` method
         "_pull_vars_cache",
     )
 
@@ -195,9 +196,6 @@ class DagFactory:
 
             data: dict[str, Any] = remove_system_fields(read_dag(self.path))
             name: str = data["id"]
-
-            # ???
-
             try:
                 dag: Dag = Dag.model_validate(
                     obj=data,
@@ -287,6 +285,9 @@ class DagFactory:
     ) -> None:
         """Build Airflow DAG to the globals.
 
+        It allows to skip building the DAG when the ``DOMINO_UNITTEST_MODE``
+        environment variable is set to True.
+
         Args:
             gb (dict[str, Any]): The Global variables.
             user_defined_macros (dict[str, Callable[..., Any]] | None): A dictionary
@@ -317,4 +318,6 @@ class DagFactory:
         Returns:
             dict[str, Any]: A DAG template data after passing all variables.
         """
-        return self.dag.model_dump()
+        return self.dag.model_dump(
+            exclude_unset=True,
+        )
