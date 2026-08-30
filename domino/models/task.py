@@ -4,7 +4,7 @@ from abc import ABC
 from typing import TYPE_CHECKING, Any, ClassVar, Literal, Self
 
 from airflow.sdk import TriggerRule
-from pydantic import ConfigDict, Field, PrivateAttr, ValidationInfo
+from pydantic import BaseModel, ConfigDict, Field, PrivateAttr, ValidationInfo
 from pydantic.functional_validators import model_validator
 
 from .builder import BaseAirflowTaskOrGroupBuilder
@@ -195,7 +195,7 @@ class BaseOperatorTask(BaseAirflowTaskOrGroupBuilder, ABC):
         return set_kws
 
 
-class BaseSensorTask(BaseOperatorTask, ABC):
+class BaseSensorMixin(BaseModel):
     """Base Sensor Task Model.
 
     !!! tip "Reference Airflow Sensor: `airflow.sdk.bases.sensor.BaseSensorOperator`"
@@ -238,4 +238,20 @@ class BaseSensorTask(BaseOperatorTask, ABC):
         ),
     )
 
-    def sensor_kwargs(self): ...
+    def sensor_kwargs(self, build_context: BuildContext) -> dict[str, Any]:
+        """Returns the keyword arguments for the Airflow BaseSensorOperator."""
+        _ = build_context
+        kws = self.model_dump(
+            include={
+                "poke_interval_sec",
+                "timeout_sec",
+                "soft_fail",
+                "mode",
+                "exponential_backoff",
+                "max_wait_sec",
+                "silent_fail",
+                "never_fail",
+            },
+            exclude_unset=True,
+        )
+        return kws

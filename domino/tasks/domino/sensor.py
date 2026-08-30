@@ -7,7 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from ...models.__types import BaseOperatorOrTaskGroup
 from ...models.builder import DominoBuilderMixin
-from ...models.task import BaseSensorTask
+from ...models.task import BaseOperatorTask, BaseSensorMixin
 
 if TYPE_CHECKING:
     from airflow.sdk.definitions.dag import DAG
@@ -45,7 +45,7 @@ class SensorOperatorKwargs(BaseModel, DominoBuilderMixin):
         return self.model_dump(exclude={"airflow_operator"})
 
 
-class SensorTask(BaseSensorTask):
+class SensorTask(BaseOperatorTask, BaseSensorMixin):
     """Sensor task.
 
     Examples:
@@ -107,4 +107,5 @@ class SensorTask(BaseSensorTask):
             task_group=task_group,
             **self.inputs.build(build_context=build_context),
             **self.base_op_kwargs(build_context=build_context),
+            **self.sensor_kwargs(build_context=build_context),
         )
